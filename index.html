@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>eHMI Simulation — Prosocial AV Communication</title>
+<link rel="stylesheet" href="style.css" />
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+  <div id="app"></div>
+
+  <!-- ===== UI overlay ===== -->
+  <div id="ui">
+    <div id="topbar" class="panel">
+      <button id="menuBtn">☰ Scenarios</button>
+      <span id="scenarioLabel" class="scenario-label">2 · Pedestrian Crossing</span>
+      <button id="startBtn">▶ Start</button>
+      <button id="resetBtn">↺ Reset</button>
+      <span id="phaseLabel" class="phase">idle</span>
+    </div>
+
+    <div id="camerabar" class="panel">
+      <button data-cam="pedestrian" class="active" title="Pedestrian first-person view">1</button>
+      <button data-cam="cyclist" title="Cyclist view">2</button>
+      <button data-cam="observer" title="Observer view">3</button>
+      <button data-cam="cinematic" title="Cinematic tracking shot">4</button>
+      <button id="recordBtn" title="Record mode: hide all UI for clean screen recording (Esc to exit)">⏺</button>
+    </div>
+
+    <details id="controls" class="panel">
+      <summary>⚙ Controls</summary>
+      <div class="controls-body">
+        <label>AV speed <input id="avSpeed" type="range" min="2" max="14" step="0.5" value="8" /><span id="avSpeedVal">8 m/s</span></label>
+        <label>Volume <input id="volume" type="range" min="0" max="1" step="0.05" value="0.6" /></label>
+        <label>Light band brightness <input id="bandBrightness" type="range" min="0.5" max="4" step="0.1" value="2" /></label>
+        <label><input id="toggleTraffic" type="checkbox" checked /> Ambient traffic</label>
+        <label><input id="toggleCyclist" type="checkbox" /> Cyclist actor</label>
+        <label><input id="toggleCar" type="checkbox" /> Merging car actor</label>
+        <button id="downloadLog">⬇ Download log (JSON)</button>
+        <p class="hint">W/↑ walk forward (where you look) · S/↓ back · A/D sideways · drag mouse: turn head (1st person) · R reset view · C cameras · Esc exit record mode</p>
+      </div>
+    </details>
+
+    <div id="hud" class="panel">
+      <span id="hudMsg">Press Start, then decide when to cross.</span>
+    </div>
+  </div>
+
+  <!-- ===== Blackout layer for the audio-only sound study (Mara mode) ===== -->
+  <div id="blackout" class="hidden"></div>
+
+  <!-- ===== Scenario menu ===== -->
+  <div id="scenarioMenu" class="modal hidden">
+    <div class="modal-box menu-box">
+      <h3>Scenarios</h3>
+      <div class="scenario-list">
+        <button class="scenario-card" data-scenario="1"><strong>1 · Merge</strong><span>AV yields to a human driver merging from a side entrance (Story 1).</span></button>
+        <button class="scenario-card" data-scenario="2"><strong>2 · Pedestrian Crossing</strong><span>Full eHMI sequence at the zebra: detect → yield → thank.</span></button>
+        <button class="scenario-card" data-scenario="3"><strong>3 · Edge Case</strong><span>A cyclist overtakes the yielding AV — unaddressed by the eHMI (Story 3).</span></button>
+        <button class="scenario-card" data-scenario="4"><strong>4 · Baseline</strong><span>Human-driven car, same yielding — no eHMI, no sound (control condition).</span></button>
+        <button class="scenario-card" data-scenario="5"><strong>5 · Mixed Traffic</strong><span>Bus, truck, cyclist and an emergency vehicle everyone yields to.</span></button>
+        <button class="scenario-card" data-scenario="6"><strong>6 · Aggressive Drivers</strong><span>Honking tailgater overtakes the yielding AV across the zebra.</span></button>
+        <button class="scenario-card" data-scenario="7"><strong>7 · Sound Study — Mara</strong><span>Audio only: black screen, cross guided purely by the sound layer (Story 2).</span></button>
+        <button class="scenario-card" data-scenario="8"><strong>8 · Sound Study — Tom</strong><span>Distracted: music masks the AV cues (Story 2).</span></button>
+        <button class="scenario-card" data-scenario="9"><strong>9 · Ambiguous Signal</strong><span>Several pedestrians wait — the AV yields, but for whom? The signal is addressed to someone else; decide for yourself (signal scoping).</span></button>
+        <button class="scenario-card highlight" data-scenario="protocol"><strong>★ Trust Protocol</strong><span>5 runs back-to-back — one of them contains an unannounced edge case. Measures trust build-up and scanning behavior (Story 3).</span></button>
+      </div>
+      <button id="menuClose">Close</button>
+    </div>
+  </div>
+
+  <!-- ===== Confidence check dialog (branches on whether the user crossed) ===== -->
+  <div id="confidenceDialog" class="modal hidden">
+    <div class="modal-box">
+      <h3>Confidence check</h3>
+
+      <div id="ccCrossed" class="cc-section">
+        <p><strong>You crossed.</strong> Why? (select all that apply)</p>
+        <div class="row wrap" id="crossReasons">
+          <button data-reason="vehicle_stopped">The vehicle stopped</button>
+          <button data-reason="ehmi_signal">The light band / display signal</button>
+          <button data-reason="sound_cue">The sound cue</button>
+          <button data-reason="traffic_clear">Traffic looked clear</button>
+          <button data-reason="just_went">I just went</button>
+        </div>
+        <p>Did you feel safe <em>while crossing</em>? (1 = not at all, 7 = very safe)</p>
+      </div>
+
+      <div id="ccNotCrossed" class="cc-section">
+        <p><strong>You did not cross.</strong> Why not? (select all that apply)</p>
+        <div class="row wrap" id="noCrossReasons">
+          <button data-reason="no_trust">I didn't trust the vehicle</button>
+          <button data-reason="signal_unclear">The signal was unclear</button>
+          <button data-reason="traffic_unsafe">Other traffic felt unsafe</button>
+          <button data-reason="needed_time">I needed more time</button>
+        </div>
+        <p>Would you cross next time?</p>
+        <div class="row">
+          <button data-next="yes">Yes</button>
+          <button data-next="no">No</button>
+        </div>
+        <p>How safe did you feel overall? (1 = not at all, 7 = very safe)</p>
+      </div>
+
+      <div class="row" id="likert">
+        <button data-safe="1">1</button><button data-safe="2">2</button>
+        <button data-safe="3">3</button><button data-safe="4">4</button>
+        <button data-safe="5">5</button><button data-safe="6">6</button>
+        <button data-safe="7">7</button>
+      </div>
+
+      <div id="ccSound" class="cc-section hidden">
+        <p>How was the vehicle's sound? (1 = very annoying, 7 = very pleasant)</p>
+        <div class="row">
+          <button data-annoy="1">1</button><button data-annoy="2">2</button>
+          <button data-annoy="3">3</button><button data-annoy="4">4</button>
+          <button data-annoy="5">5</button><button data-annoy="6">6</button>
+          <button data-annoy="7">7</button>
+        </div>
+      </div>
+      <button id="confidenceSubmit" disabled>Submit</button>
+    </div>
+  </div>
+
+  <!-- ===== Accident dialog ===== -->
+  <div id="accidentDialog" class="modal hidden">
+    <div class="modal-box">
+      <h3>💥 Accident</h3>
+      <p id="accidentText">There was an accident.</p>
+      <button id="accidentOk">OK — reset scenario</button>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js?v=19"></script>
+</body>
+</html>

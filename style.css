@@ -1,0 +1,62 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0e16; font-family: system-ui, -apple-system, sans-serif; }
+#app, #app canvas { position: fixed; inset: 0; display: block; }
+
+#ui { position: fixed; inset: 0; pointer-events: none; color: #e8ecf5; }
+#ui .panel { pointer-events: auto; }
+.recording #ui { display: none; }
+
+.panel {
+  background: rgba(14, 18, 30, 0.82);
+  border: 1px solid rgba(120, 160, 220, 0.25);
+  border-radius: 10px;
+  padding: 10px 14px;
+  backdrop-filter: blur(6px);
+  font-size: 13px;
+}
+
+#topbar { position: absolute; top: 12px; left: 12px; display: flex; gap: 10px; align-items: center; }
+#camerabar { position: absolute; top: 12px; right: 12px; display: flex; gap: 5px; padding: 6px 8px; }
+#camerabar button { padding: 4px 10px; }
+#controls { position: absolute; bottom: 12px; right: 12px; max-width: 260px; }
+#controls summary { cursor: pointer; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #9fb4d8; user-select: none; }
+#controls .controls-body { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; width: 236px; }
+#controls label { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+#controls input[type="range"] { flex: 1; }
+#hud { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); font-size: 15px; }
+
+button, select {
+  background: #1b2438; color: #e8ecf5; border: 1px solid rgba(120,160,220,0.35);
+  border-radius: 6px; padding: 5px 10px; font-size: 13px; cursor: pointer;
+}
+button:hover { background: #263351; }
+button.active { background: #2d4a7a; border-color: #6fa8ff; }
+#recordBtn { border-color: #d05a5a; }
+.phase { font-size: 12px; color: #8fe3ff; min-width: 90px; }
+.hint { font-size: 11px; color: #8a96ad; margin: 4px 0 0; }
+
+.modal { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(5,8,14,0.6); z-index: 50; }
+.modal.hidden { display: none; }
+.modal-box { background: #131a2b; border: 1px solid rgba(120,160,220,0.35); border-radius: 12px; padding: 22px 26px; color: #e8ecf5; width: 360px; text-align: center; }
+.modal-box .row { display: flex; gap: 6px; justify-content: center; margin: 8px 0 14px; }
+.modal-box .row.wrap { flex-wrap: wrap; }
+.cc-section.hidden { display: none; }
+
+/* Blackout layer for the audio-only study (above the canvas, below the UI) */
+#blackout { position: fixed; inset: 0; background: #000; z-index: 5; pointer-events: none; }
+#blackout.hidden { display: none; }
+#ui { z-index: 10; }
+
+/* Scenario menu */
+.menu-box { width: 520px; max-height: 80vh; overflow-y: auto; text-align: left; }
+.menu-box h3 { text-align: center; }
+.scenario-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.scenario-card { display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 10px 12px; }
+.scenario-card strong { font-size: 14px; }
+.scenario-card span { font-size: 12px; color: #9fb4d8; line-height: 1.35; }
+.scenario-card.highlight { border-color: #d0a05a; }
+#menuClose { width: 100%; }
+.scenario-label { font-size: 13px; color: #cdd9ee; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.modal-box button.selected { background: #2d4a7a; border-color: #6fa8ff; }
+#confidenceSubmit { margin-top: 6px; width: 100%; }
+#confidenceSubmit:disabled { opacity: 0.4; cursor: default; }

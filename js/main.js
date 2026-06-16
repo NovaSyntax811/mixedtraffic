@@ -1,0 +1,506 @@
+// Entry point: wires scene, actors, audio, scenarios, cameras, input, UI, logging.
+import * as THREE from 'three';
+import { createScene, LAYOUT } from './scene.js?v=3';
+import { AV } from './vehicle.js?v=18';
+import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=19';
+import { EHMISound } from './audio.js?v=17';
+import { BehaviorLogger, showConfidenceCheck } from './logger.js?v=15';
+import { ScenarioRunner } from './scenarios.js?v=19';
+
+const { scene, camera, renderer, composer } = createScene();
+const av = new AV(scene);
+const pedestrian = new Pedestrian(scene);
+const cyclist = new Cyclist(scene);
+const mergingCar = new MergingCar(scene);
+const humanCar = new HumanCar(scene);
+const traffic = new TrafficManager(scene);
+// Background pedestrians for the ambiguous-signal scenario
+const npcs = [new NpcPedestrian(scene, 0x4a7a8a), new NpcPedestrian(scene, 0x8a6a4a)];
+const sound = new EHMISound();
+const logger = new BehaviorLogger();
+
+const hudMsg = document.getElementById('hudMsg');
+const phaseLabel = document.getElementById('phaseLabel');
+
+const runner = new ScenarioRunner({
+  av, humanCar, pedestrian, cyclist, mergingCar, traffic, npcs, sound, logger,
+  onPhase: (p) => { phaseLabel.textContent = p; },
+  onMessage: (m) => { hudMsg.textContent = m; },
+  onComplete: async () => {
+    const run = logger.finishRun(); // snapshot now — a new run may start while the dialog is open
+    setBlackout(false);             // restore vision for the dialog (audio-only study)
+    sound.stopDistractor();
+    sound.audioOnlyBoost = false;
+    const askSound = run?.scenario === 7 || run?.scenario === 8;
+    const answers = await showConfidenceCheck(!!run?.crossed, askSound);
+    logger.completeRun(run, answers);
+    // Trust protocol: chain straight into the next run
+    if (protocol) {
+      protocol.step += 1;
+      if (protocol.step < protocol.total) { nextProtocolRun(); return; }
+      protocol = null;
+      hudMsg.textContent = 'Trust protocol complete — download the log to see scanning behavior across runs.';
+      return;
+    }
+    hudMsg.textContent = 'Logged. Pick a scenario and press Start for another run.';
+  },
+});
+
+// ---------- Input ----------
+const keys = new Set();
+const MOVE_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+window.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if (MOVE_KEYS.includes(e.code)) e.preventDefault(); // no page scroll / button re-trigger
+  keys.add(e.code);
+  if (e.code === 'KeyC') cycleCamera();
+  if (e.code === 'KeyR') resetFpvLook();
+  if (e.code === 'Escape') setRecordMode(false);
+});
+window.addEventListener('keyup', (e) => keys.delete(e.code));
+
+// Movement tailored to the active perspective. W/↑ is always "straight
+// forward on screen", S/↓ backward, A/D sideways:
+//  - First-person & cinematic: the FPV view faces across the street and is
+//    stable, so the mapping is fixed (W = across, no drift while walking).
+//  - Observer: the camera sits at a fixed offset, so movement is derived
+//    from the camera axes (W = up the screen).
+function moveDir() {
+  const input = new THREE.Vector2(); // x = right on screen, y = forward
+  if (keys.has('KeyW') || keys.has('ArrowUp')) input.y += 1;
+  if (keys.has('KeyS') || keys.has('ArrowDown')) input.y -= 1;
+  if (keys.has('KeyA') || keys.has('ArrowLeft')) input.x -= 1;
+  if (keys.has('KeyD') || keys.has('ArrowRight')) input.x += 1;
+  if (input.lengthSq() === 0) return input;
+  input.normalize();
+
+  if (camMode === 'observer') {
+    // Camera-relative (camera yaw is constant in this mode)
+    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+    fwd.y = 0;
+    fwd.normalize();
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+    right.y = 0;
+    right.normalize();
+    const world = new THREE.Vector3()
+      .addScaledVector(fwd, input.y)
+      .addScaledVector(right, input.x);
+    return new THREE.Vector2(world.x, world.z).normalize();
+  }
+
+  // FPV (and cinematic): movement follows the current head direction —
+  // W walks where you look, A/D strafe relative to it.
+  const yaw = camMode === 'cinematic' ? FPV_YAW : fpvYaw;
+  const fx = Math.sin(yaw), fz = Math.cos(yaw);
+  const rx = -Math.cos(yaw), rz = Math.sin(yaw); // screen-right on the ground
+  return new THREE.Vector2(fx * input.y + rx * input.x, fz * input.y + rz * input.x).normalize();
+}
+
+// ---------- Cameras ----------
+const camModes = ['pedestrian', 'cyclist', 'observer', 'cinematic'];
+let camMode = 'pedestrian';
+let cinT = 0;
+
+function setCamera(mode) {
+  camMode = mode;
+  document.querySelectorAll('#camerabar [data-cam]').forEach((b) =>
+    b.classList.toggle('active', b.dataset.cam === mode));
+  pedestrian.speed = mode === 'cyclist' ? 4.0 : 1.5; // cyclist embodiment is faster
+}
+function cycleCamera() {
+  setCamera(camModes[(camModes.indexOf(camMode) + 1) % camModes.length]);
+}
+document.querySelectorAll('#camerabar [data-cam]').forEach((b) =>
+  b.addEventListener('click', () => setCamera(b.dataset.cam)));
+
+// The vehicle the interaction centers on: the human car in the baseline
+// scenario (it is only visible then), otherwise the AV.
+function focusVehicle() { return humanCar.group.visible ? humanCar : av; }
+
+// ---------- First-person mouse look ----------
+// Drag the mouse to turn the head in first person; R re-centers the view.
+const FPV_YAW = Math.PI / 2; // default: facing across the street
+let fpvYaw = FPV_YAW;
+let fpvPitch = 0;
+let lookDragging = false;
+let lastMouse = { x: 0, y: 0 };
+
+renderer.domElement.addEventListener('mousedown', (e) => {
+  if (camMode !== 'pedestrian' && camMode !== 'cyclist') return;
+  lookDragging = true;
+  lastMouse = { x: e.clientX, y: e.clientY };
+  renderer.domElement.style.cursor = 'grabbing';
+});
+window.addEventListener('mousemove', (e) => {
+  if (!lookDragging) return;
+  fpvYaw -= (e.clientX - lastMouse.x) * 0.005;
+  fpvPitch = THREE.MathUtils.clamp(fpvPitch - (e.clientY - lastMouse.y) * 0.004, -0.9, 0.9);
+  lastMouse = { x: e.clientX, y: e.clientY };
+});
+window.addEventListener('mouseup', () => {
+  lookDragging = false;
+  renderer.domElement.style.cursor = '';
+});
+function resetFpvLook() { fpvYaw = FPV_YAW; fpvPitch = 0; }
+
+function updateCamera(dt) {
+  const p = pedestrian.group.position;
+  const isFPV = camMode === 'pedestrian' || camMode === 'cyclist';
+  // Hide the player model in first person so no body parts block the view
+  pedestrian.group.visible = !isFPV;
+  if (isFPV) {
+    // First-person view: gaze controlled by mouse drag (yaw + pitch),
+    // stable otherwise — it never swings away on its own. R re-centers.
+    const eye = camMode === 'cyclist' ? 1.9 : 1.6;
+    camera.position.lerp(new THREE.Vector3(p.x, eye, p.z), Math.min(1, dt * 12));
+    const cp = Math.cos(fpvPitch);
+    const target = new THREE.Vector3(
+      p.x + Math.sin(fpvYaw) * cp * 5,
+      eye + Math.sin(fpvPitch) * 5,
+      p.z + Math.cos(fpvYaw) * cp * 5);
+    const m = new THREE.Matrix4().lookAt(camera.position, target, new THREE.Vector3(0, 1, 0));
+    camera.quaternion.slerp(new THREE.Quaternion().setFromRotationMatrix(m), Math.min(1, dt * (lookDragging ? 14 : 6)));
+  } else if (camMode === 'observer') {
+    // Player-centered: follow the pedestrian from a raised offset
+    camera.position.lerp(new THREE.Vector3(p.x + 10, 9, p.z + 10), Math.min(1, dt * 3));
+    camera.lookAt(p.x, 1.0, p.z);
+  } else if (camMode === 'cinematic') {
+    // Smooth orbiting dolly, biased toward the player
+    cinT += dt * 0.12;
+    const focus = new THREE.Vector3()
+      .addScaledVector(focusVehicle().group.position, 0.3)
+      .addScaledVector(p, 0.7)
+      .setY(1.0);
+    const r = 13;
+    const want = new THREE.Vector3(
+      focus.x + Math.sin(cinT) * r,
+      4.5 + Math.sin(cinT * 0.7) * 1.5,
+      focus.z + Math.cos(cinT) * r
+    );
+    camera.position.lerp(want, Math.min(1, dt * 1.5));
+    camera.lookAt(focus);
+  }
+}
+
+// ---------- UI bindings ----------
+const $ = (id) => document.getElementById(id);
+
+// ---------- Scenario menu + study modes ----------
+const SCENARIO_LABELS = {
+  1: '1 · Merge', 2: '2 · Pedestrian Crossing', 3: '3 · Edge Case',
+  4: '4 · Baseline (no eHMI)', 5: '5 · Mixed Traffic', 6: '6 · Aggressive Drivers',
+  7: '7 · Sound Study — Mara', 8: '8 · Sound Study — Tom',
+  9: '9 · Ambiguous Signal',
+  protocol: '★ Trust Protocol',
+};
+let selectedScenario = 2;
+let protocol = null; // { step, total } while the trust protocol is running
+
+function setBlackout(on) { $('blackout').classList.toggle('hidden', !on); }
+
+// Core run starter: configures the study modes that belong to the scenario.
+function beginRun(scenario, { quietEdge = false, protocolStep = null } = {}) {
+  sound.init(); // requires a user gesture — menu/start clicks provide one
+  sound.setVolume(parseFloat($('volume').value));
+  runner.approachSpeed = parseFloat($('avSpeed').value);
+
+  setBlackout(scenario === 7);                            // Mara: audio only
+  sound.audioOnlyBoost = scenario === 7;                  // louder, longer-range cues
+  if (scenario === 8) sound.startDistractor();            // Tom: masking music
+  else sound.stopDistractor();
+
+  logger.nextMeta = {
+    soundVolume: sound.volume,
+    ...(scenario === 7 ? { mode: 'audio_only' } : {}),
+    ...(scenario === 8 ? { mode: 'distracted' } : {}),
+    ...(scenario === 9 ? { mode: 'ambiguous_signal' } : {}),
+    ...(protocolStep !== null ? { protocolStep } : {}),
+  };
+  runner.start(scenario);
+  runner.quietEdge = quietEdge; // set after start() (which resets the flag)
+}
+
+function startSelected() {
+  if (selectedScenario === 'protocol') {
+    protocol = { step: 0, total: 5 };
+    nextProtocolRun();
+  } else {
+    protocol = null;
+    beginRun(selectedScenario);
+  }
+}
+
+// Trust protocol: identical-looking runs; the last one silently swaps in the
+// unaddressed-cyclist edge case. Messages must not give it away.
+function nextProtocolRun() {
+  const edge = protocol.step === protocol.total - 1;
+  beginRun(edge ? 3 : 2, { quietEdge: true, protocolStep: protocol.step + 1 });
+  hudMsg.textContent = `Run ${protocol.step + 1} of ${protocol.total} — cross when you feel safe (W/↑).`;
+}
+
+$('menuBtn').addEventListener('click', () => $('scenarioMenu').classList.remove('hidden'));
+$('menuClose').addEventListener('click', () => $('scenarioMenu').classList.add('hidden'));
+document.querySelectorAll('.scenario-card').forEach((card) => {
+  card.addEventListener('click', () => {
+    const v = card.dataset.scenario;
+    selectedScenario = v === 'protocol' ? 'protocol' : parseInt(v, 10);
+    $('scenarioLabel').textContent = SCENARIO_LABELS[selectedScenario];
+    $('scenarioMenu').classList.add('hidden');
+    startSelected();
+  });
+});
+
+$('startBtn').addEventListener('click', startSelected);
+$('resetBtn').addEventListener('click', () => {
+  protocol = null;
+  setBlackout(false);
+  sound.stopDistractor();
+  sound.audioOnlyBoost = false;
+  runner.reset();
+});
+
+$('avSpeed').addEventListener('input', (e) => {
+  runner.approachSpeed = parseFloat(e.target.value);
+  $('avSpeedVal').textContent = `${e.target.value} m/s`;
+});
+$('volume').addEventListener('input', (e) => sound.setVolume(parseFloat(e.target.value)));
+$('bandBrightness').addEventListener('input', (e) => { av.brightness = parseFloat(e.target.value); });
+$('toggleTraffic').addEventListener('change', (e) => traffic.setEnabled(e.target.checked));
+$('toggleCyclist').addEventListener('change', (e) => e.target.checked ? cyclist.start() : cyclist.hide());
+$('toggleCar').addEventListener('change', (e) => e.target.checked ? mergingCar.spawnWaiting() : mergingCar.hide());
+$('downloadLog').addEventListener('click', () => logger.download());
+
+// Record mode: hide all UI for clean screen recordings (Esc exits)
+function setRecordMode(on) { document.body.classList.toggle('recording', on); }
+$('recordBtn').addEventListener('click', () => setRecordMode(true));
+
+// ---------- Accident system ----------
+// Any actual collision (vehicle/cyclist/pedestrian) triggers a crash: sound,
+// log entry, frozen scenario, and a pop-up dialog.
+let accidentShown = false;
+
+function triggerAccident(a, b) {
+  if (accidentShown) return;
+  accidentShown = true;
+  sound.playCrash();
+  logger.event('accident', { between: [a, b] });
+  runner.haltForAccident();
+  document.getElementById('accidentText').textContent =
+    `There was an accident: the ${a} collided with the ${b}.`;
+  document.getElementById('accidentDialog').classList.remove('hidden');
+}
+
+$('accidentOk').addEventListener('click', () => {
+  document.getElementById('accidentDialog').classList.add('hidden');
+  logger.abortRun('accident');
+  const wasProtocol = !!protocol;
+  protocol = null;
+  setBlackout(false);
+  sound.stopDistractor();
+  runner.reset();
+  if (wasProtocol) hudMsg.textContent = 'Trust protocol ended in an accident — download the log.';
+  // clear ambient traffic so a crashed pair doesn't re-trigger immediately
+  const trafficWasOn = traffic.enabled;
+  traffic.setEnabled(false);
+  traffic.setEnabled(trafficWasOn);
+  accidentShown = false;
+});
+
+// Pedestrian vs. every vehicle, using oriented bounding boxes: a moving
+// vehicle hitting the pedestrian is an accident (pedestrian falls); a parked
+// one just blocks the way (pedestrian is pushed out instead of clipping).
+function checkPedestrianCollisions() {
+  if (pedestrian.fallen) return;
+  const p = pedestrian.group.position;
+  const pr = 0.35;
+  const boxes = [];
+  if (av.group.visible) boxes.push({ name: 'AV', pos: av.group.position, rotY: av.group.rotation.y, hw: 1.05, hl: 2.25, speed: Math.abs(av.speed) });
+  if (humanCar.group.visible) boxes.push({ name: 'car', pos: humanCar.group.position, rotY: humanCar.group.rotation.y, hw: 0.95, hl: 2.05, speed: Math.abs(humanCar.speed) });
+  if (mergingCar.group.visible) boxes.push({ name: 'car', pos: mergingCar.group.position, rotY: mergingCar.group.rotation.y, hw: 0.95, hl: 2.05, speed: mergingCar.state === 'merging' ? 3 : 0 });
+  for (const c of traffic.cars) boxes.push({ name: c.kind ?? 'car', pos: c.mesh.position, rotY: c.mesh.rotation.y, hw: c.hw ?? 0.95, hl: c.hl ?? 2.05, speed: Math.abs(c.speed) });
+
+  for (const v of boxes) {
+    const dx = p.x - v.pos.x, dz = p.z - v.pos.z;
+    const cos = Math.cos(v.rotY), sin = Math.sin(v.rotY);
+    const lx = dx * cos - dz * sin;
+    const lz = dx * sin + dz * cos;
+    const penX = v.hw + pr - Math.abs(lx);
+    const penZ = v.hl + pr - Math.abs(lz);
+    if (penX <= 0 || penZ <= 0) continue; // no overlap
+    if (v.speed > 0.8) {
+      pedestrian.fall();
+      triggerAccident(v.name, 'pedestrian');
+    } else if (penX < penZ) { // push out sideways
+      const s = Math.sign(lx) || 1;
+      p.x += s * penX * cos;
+      p.z -= s * penX * sin;
+    } else {                  // push out lengthwise
+      const s = Math.sign(lz) || 1;
+      p.x += s * penZ * sin;
+      p.z += s * penZ * cos;
+    }
+  }
+}
+
+// Vehicle-vs-vehicle accidents (traffic cars, AV, human car, merging car):
+// if anything behaves unusually and two vehicles actually collide, it is an
+// accident. Each car body is approximated by a front and a rear circle.
+function checkVehicleCollisions() {
+  const bodies = [];
+  if (av.group.visible) bodies.push({ name: 'AV', g: av.group, hl: 2.05, speed: Math.abs(av.speed), stop: () => { av.targetSpeed = 0; av.speed = 0; } });
+  if (humanCar.group.visible) bodies.push({ name: 'car', g: humanCar.group, hl: 2.05, speed: Math.abs(humanCar.speed), stop: () => { humanCar.targetSpeed = 0; humanCar.speed = 0; } });
+  if (mergingCar.group.visible) bodies.push({ name: 'merging car', g: mergingCar.group, hl: 2.05, speed: mergingCar.state === 'merging' ? 3 : 0, stop: () => { mergingCar.state = 'waiting'; } });
+  for (const c of traffic.cars) bodies.push({ name: c.kind ?? 'car', g: c.mesh, hl: c.hl ?? 2.05, speed: Math.abs(c.speed), stop: () => { c.speed = 0; c.cruise = 0; } });
+
+  // Contact needs real body overlap: queued traffic stands well apart
+  // (circle gap ≥1.7), a T-bone hit reaches gap ~1.25 — threshold sits between.
+  const CONTACT = 1.4;
+  // Circle centers spread along the vehicle axis (long vehicles get more),
+  // spaced ≤ ~1.3m so there is no gap a crossing car could slip through.
+  const circles = (b) => {
+    const span = Math.max(0, b.hl - 0.8);
+    const count = Math.max(3, Math.round(span / 0.65) + 1);
+    const fwd = new THREE.Vector3(Math.sin(b.g.rotation.y), 0, Math.cos(b.g.rotation.y));
+    const out = [];
+    for (let k = 0; k < count; k++) {
+      const off = -span + (2 * span) * (k / (count - 1));
+      out.push(b.g.position.clone().addScaledVector(fwd, off));
+    }
+    return out;
+  };
+
+  for (let i = 0; i < bodies.length; i++) {
+    for (let j = i + 1; j < bodies.length; j++) {
+      const a = bodies[i], b = bodies[j];
+      if (a.speed < 0.8 && b.speed < 0.8) continue; // both standing — no crash
+      const ca = circles(a), cb = circles(b);
+      let hit = false;
+      for (const p of ca) for (const q of cb) if (p.distanceTo(q) < CONTACT) hit = true;
+      if (!hit) continue;
+      a.stop();
+      b.stop();
+      triggerAccident(a.name, b.name);
+      return;
+    }
+  }
+}
+
+// ---------- Main loop ----------
+// Aggressive / emergency traffic events
+traffic.onHonk = (car) => {
+  sound.playHorn();
+  logger.event('honk', { kind: car.kind });
+};
+traffic.onOvertake = (car) => {
+  logger.event('aggressive_overtake_started', { kind: car.kind });
+  hudMsg.textContent = '⚠ The impatient driver is overtaking the yielding AV!';
+};
+
+// Collision / hard-brake events from the cyclist (scenario 3 edge case)
+cyclist.onEvent = (name, data) => {
+  if (name === 'collision') {
+    if (data.with === 'pedestrian') pedestrian.fall();
+    triggerAccident('cyclist', data.with);
+  } else if (name === 'cyclist_hard_brake') {
+    logger.event('cyclist_hard_brake', data);
+  }
+};
+
+// Debug/scripting handle (used for automated testing; harmless in production)
+window.__sim = { runner, av, humanCar, pedestrian, cyclist, mergingCar, traffic, sound, logger, setCamera, camera, moveDir, keys, checkPedestrianCollisions, checkVehicleCollisions, updateCamera, renderer, resetFpvLook,
+  getFpvLook: () => ({ yaw: fpvYaw, pitch: fpvPitch }),
+  npcs, beginRun, startSelected, getProtocol: () => protocol,
+  setSelected: (v) => { selectedScenario = v; },
+  isLookingAtVehicle: () => lastLookingAtVehicle };
+
+const clock = new THREE.Clock();
+const ROAD_HALF = LAYOUT.roadWidth / 2;
+let sirenWasActive = false;
+let lastLookingAtVehicle = false;
+let stepDistance = 0;
+let wasInRoadSound = false;
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+
+  pedestrian.update(dt, moveDir());
+  av.update(dt);
+  humanCar.update(dt);
+  for (const n of npcs) n.update(dt);
+
+  // Obstacle lists so nothing clips through anything: the cyclist avoids (or
+  // crashes into) everyone, traffic cars brake for everyone.
+  const baseObstacles = [
+    { pos: pedestrian.group.position, r: 0.8, name: 'pedestrian' },
+  ];
+  for (const n of npcs) if (n.group.visible) baseObstacles.push({ pos: n.group.position, r: 0.8, name: 'pedestrian' });
+  if (av.group.visible) baseObstacles.push({ pos: av.group.position, r: 1.9, name: 'AV' });
+  if (humanCar.group.visible) baseObstacles.push({ pos: humanCar.group.position, r: 1.9, name: 'car' });
+  if (mergingCar.group.visible) baseObstacles.push({ pos: mergingCar.group.position, r: 1.8, name: 'car' });
+  const trafficObstacles = [...baseObstacles];
+  if (cyclist.active) trafficObstacles.push({ pos: cyclist.group.position, r: 0.9, name: 'cyclist' });
+
+  const p = pedestrian.group.position;
+  const inRoad = Math.abs(p.x) < ROAD_HALF;
+  const inZone = (v) => Math.abs(v.x) < 7 && Math.abs(v.z) < 7;
+  const zoneOccupiedExternal = (av.group.visible && inZone(av.group.position))
+    || (humanCar.group.visible && inZone(humanCar.group.position))
+    || (cyclist.active && inZone(cyclist.group.position))
+    || (mergingCar.group.visible && inZone(mergingCar.group.position));
+
+  // Zebra stop rule applies to the player AND any NPC pedestrian on the road
+  const pedInRoadAny = inRoad
+    || npcs.some((n) => n.group.visible && Math.abs(n.group.position.x) < ROAD_HALF);
+
+  cyclist.update(dt, [...baseObstacles, ...traffic.cars.map((c) => ({ pos: c.mesh.position, r: c.r ?? 1.8, name: 'car' }))]);
+  traffic.update(dt, { obstacles: trafficObstacles, pedInRoad: pedInRoadAny, zoneOccupiedExternal, avPos: av.group.position, avVisible: av.group.visible });
+
+  // Siren audio follows whether an emergency vehicle is on scene
+  const sirenActive = traffic.cars.some((c) => c.siren);
+  if (sirenActive && !sirenWasActive) sound.startSiren();
+  if (!sirenActive && sirenWasActive) sound.stopSiren();
+  sirenWasActive = sirenActive;
+  mergingCar.update(dt);
+  runner.update(dt);
+  checkPedestrianCollisions();
+  checkVehicleCollisions();
+  updateCamera(dt);
+
+  // Behavioral logging tick (vehicle distance = AV, or human car in baseline).
+  // Gaze proxy: in first person, is the head turned toward the vehicle (±30°)?
+  const avDist = focusVehicle().group.position.distanceTo(p);
+  const isFPVNow = camMode === 'pedestrian' || camMode === 'cyclist';
+  let lookingAtVehicle = false;
+  if (isFPVNow) {
+    const toV = new THREE.Vector3().subVectors(focusVehicle().group.position, camera.position);
+    toV.y = 0;
+    if (toV.lengthSq() > 0.01) {
+      toV.normalize();
+      const gaze = camera.getWorldDirection(new THREE.Vector3());
+      gaze.y = 0;
+      gaze.normalize();
+      lookingAtVehicle = toV.dot(gaze) > 0.866; // cos 30°
+    }
+  }
+  lastLookingAtVehicle = lookingAtVehicle;
+  logger.tick(inRoad, pedestrian.moving, avDist, lookingAtVehicle, dt * 1000);
+
+  // Audio-only study: footsteps while walking + a curb tick at the road edge,
+  // so the participant can track their own position without vision.
+  if (runner.scenario === 7 && runner.running) {
+    if (pedestrian.moving) {
+      stepDistance += pedestrian.speed * dt;
+      if (stepDistance > 0.6) { stepDistance = 0; sound.playStep(); }
+    }
+    if (inRoad !== wasInRoadSound) sound.playCurb();
+  }
+  wasInRoadSound = inRoad;
+
+  // Sound update with camera-relative panning
+  const camRight = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+  sound.update(av.group.position, camera.position, camRight, av.speed, av.targetSpeed < av.speed - 0.3);
+
+  composer.render();
+}
+animate();
