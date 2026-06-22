@@ -1,11 +1,11 @@
 // Entry point: wires scene, actors, audio, scenarios, cameras, input, UI, logging.
 import * as THREE from 'three';
-import { createScene, LAYOUT } from './scene.js?v=27';
+import { createScene, LAYOUT } from './scene.js?v=28';
 import { AV } from './vehicle.js?v=18';
 import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=26';
 import { EHMISound } from './audio.js?v=17';
 import { BehaviorLogger, showConfidenceCheck } from './logger.js?v=15';
-import { ScenarioRunner } from './scenarios.js?v=26';
+import { ScenarioRunner } from './scenarios.js?v=28';
 
 const { scene, camera, renderer, composer, setTimeOfDay } = createScene();
 
@@ -27,8 +27,8 @@ const SCENARIO_LIGHTING = {
 // Quick "who's who" briefing shown at the start of each scenario, so the
 // named characters and their behaviours don't have to be remembered.
 const SCENARIO_RECAP = {
-  1: { title: 'Baseline — who\'s who', lines: [['🚗 Human-driven car', 'an ordinary driver, no signals at all'], ['🚶 You', 'decide for yourself when it is safe to cross']] },
-  2: { title: 'Pedestrian crossing — who\'s who', lines: [['🚐 Autonomous vehicle', 'communicates with light band, windshield display and sound'], ['🚶 You', 'watch its signals and cross when you feel safe']] },
+  1: { title: 'Baseline — who\'s who', lines: [['🚗 Human-driven car', 'an ordinary driver, no signals at all'], ['🚶 You', 'there is no crossing here — decide for yourself if and when to cross']] },
+  2: { title: 'Prosocial yield — who\'s who', lines: [['🚐 Autonomous vehicle', 'communicates with light band, windshield display and sound'], ['🤝 No marked crossing', 'you have no right of way — if the AV stops, it is letting you cross by choice'], ['🚶 You', 'read its signals and cross when you feel safe']] },
   3: { title: 'Edge case — who\'s who', lines: [['🚐 The AV', 'detects you and yields — light band, 👋, tone'], ['🚴 Cyclist', 'overtakes the AV from behind and will NOT stop for you — the AV never signals to it'], ['🚶 You', 'the signal is honest, but it only speaks for that one car']] },
   4: { title: 'Merge — who\'s who', lines: [['🚐 The AV', 'yields to let another driver in'], ['🚗 Human driver', 'waits at the side entrance to merge'], ['🚶 You', 'observe the hand-off between the two cars']] },
   5: { title: 'Mixed traffic — who\'s who', lines: [['🚌 Bus, 🚚 truck, 🚴 cyclist', 'ordinary traffic, each behaving differently'], ['🚑 Ambulance', 'siren on — everyone pulls over for it'], ['🚶 You', 'cross amid the chaos when you judge it safe']] },
@@ -230,7 +230,7 @@ const $ = (id) => document.getElementById(id);
 
 // ---------- Scenario menu + study modes ----------
 const SCENARIO_LABELS = {
-  1: '1 · Baseline (no eHMI)', 2: '2 · Pedestrian Crossing', 3: '3 · Edge Case',
+  1: '1 · Baseline (no eHMI)', 2: '2 · Prosocial Yield', 3: '3 · Edge Case',
   4: '4 · Merge', 5: '5 · Mixed Traffic', 6: '6 · Aggressive Drivers',
   7: '7 · Sound Study — Mara', 8: '8 · Sound Study — Tom',
   9: '9 · Ambiguous Signal',

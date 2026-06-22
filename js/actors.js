@@ -1,6 +1,6 @@
 // User-controlled pedestrian + secondary actors (cyclist, merging car, ambient traffic).
 import * as THREE from 'three';
-import { LAYOUT } from './scene.js?v=27';
+import { LAYOUT } from './scene.js?v=28';
 
 // Shared obstacle check: is anything in `obstacles` blocking the path ahead?
 // Returns the blocking obstacle, or null. `forward` must be normalized (XZ plane).

@@ -91,6 +91,8 @@
         <h3>2 · Why we do it</h3>
         <p>We want to learn <em>when you feel safe enough to cross</em> — and whether the car's
         signals actually help you decide, or whether you'd cross anyway.</p>
+        <p>There are <strong>no marked crossings</strong> here. When a car stops to let you cross,
+        it is yielding <em>by choice</em> (prosocially), not because the law obliges it.</p>
         <p>Some scenarios are tricky on purpose: a signal meant for someone else, a cyclist the
         car never saw, aggressive drivers. There are <strong>no right or wrong choices</strong> —
         we study <em>your</em> judgement. Your decisions and reaction times are logged anonymously.</p>
@@ -124,11 +126,11 @@
       <h3>Scenarios</h3>
       <div class="scenario-list">
         <button class="scenario-card" data-scenario="1"><strong>1 · Baseline</strong><span>Human-driven car, same yielding — no eHMI, no sound (control condition). Run this first.</span></button>
-        <button class="scenario-card" data-scenario="2"><strong>2 · Pedestrian Crossing</strong><span>Full eHMI sequence at the zebra: detect → yield → thank.</span></button>
+        <button class="scenario-card" data-scenario="2"><strong>2 · Prosocial Yield</strong><span>No marked crossing — the AV chooses to let you cross. Full eHMI sequence: detect → yield → thank.</span></button>
         <button class="scenario-card" data-scenario="3"><strong>3 · Edge Case</strong><span>A cyclist overtakes the yielding AV — unaddressed by the eHMI (Story 3).</span></button>
         <button class="scenario-card" data-scenario="4"><strong>4 · Merge</strong><span>AV yields to a human driver merging from a side entrance (Story 1).</span></button>
         <button class="scenario-card" data-scenario="5"><strong>5 · Mixed Traffic</strong><span>Bus, truck, cyclist and an emergency vehicle everyone yields to.</span></button>
-        <button class="scenario-card" data-scenario="6"><strong>6 · Aggressive Drivers</strong><span>Honking tailgater overtakes the yielding AV across the zebra.</span></button>
+        <button class="scenario-card" data-scenario="6"><strong>6 · Aggressive Drivers</strong><span>Honking tailgater overtakes the yielding AV right across your path.</span></button>
         <button class="scenario-card" data-scenario="7"><strong>7 · Sound Study — Mara</strong><span>Audio only: black screen, cross guided purely by the sound layer (Story 2).</span></button>
         <button class="scenario-card" data-scenario="8"><strong>8 · Sound Study — Tom</strong><span>Distracted: music masks the AV cues (Story 2).</span></button>
         <button class="scenario-card" data-scenario="9"><strong>9 · Ambiguous Signal</strong><span>Several pedestrians wait — the AV yields, but for whom? The signal is addressed to someone else; decide for yourself (signal scoping).</span></button>
@@ -200,6 +202,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=27"></script>
+  <script type="module" src="js/main.js?v=28"></script>
 </body>
 </html>

@@ -152,14 +152,9 @@ function buildEnvironment(scene) {
   for (const sx of [-1, 1]) addLine(0.16, 220, sx * (roadWidth / 2 - 0.2), 0);  // main road edges
   for (const sz of [-1, 1]) addLine(220, 0.16, 0, sz * (roadWidth / 2 - 0.2));  // side road edges
 
-  // Zebra crossing (light grey stripes across the main road at zebraZ)
-  const stripeMat = new THREE.MeshStandardMaterial({ color: 0xb0b0b0, roughness: 0.7 });
-  for (let i = 0; i < 7; i++) {
-    const stripe = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 3.4), stripeMat);
-    stripe.rotation.x = -Math.PI / 2;
-    stripe.position.set(-3 + i, 0.014, zebraZ);
-    scene.add(stripe);
-  }
+  // No painted crossing here on purpose: the pedestrian has no legal right of
+  // way, so when the AV stops it is yielding by choice (prosocial), not because
+  // a zebra obliges it. (zebraZ is kept only as the internal crossing point.)
 
   // Center lane dashes on the main road
   const dashMat = new THREE.MeshStandardMaterial({ color: 0x9a9580, roughness: 0.85 });

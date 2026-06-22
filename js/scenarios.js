@@ -1,6 +1,6 @@
 // Scenario state machines, following the interaction arc:
 // Detection -> Decision -> Action (signal) -> Acknowledgment -> Outcome
-import { LAYOUT } from './scene.js?v=27';
+import { LAYOUT } from './scene.js?v=28';
 
 const ZEBRA = LAYOUT.zebraZ;
 const PREROLL = 9; // seconds the vehicle waits at the start (free-walk lead-in)
@@ -56,7 +56,7 @@ export class ScenarioRunner {
       this.av.group.visible = false;
       this.humanCar.spawn();
       this.humanCar.targetSpeed = this.approachSpeed;
-      this.setPhase('approach', 'A car approaches the crossing. Cross when you feel safe (W/↑).');
+      this.setPhase('approach', 'An ordinary car is approaching — no crossing here. Will it let you cross? (W/↑)');
       return;
     }
 
@@ -112,7 +112,7 @@ export class ScenarioRunner {
       // whether the signal applies to them too.
       this.npcs?.[0]?.place(5.5, 6.5, -Math.PI / 2);   // far (east) curb — the real addressee
       this.npcs?.[1]?.place(-5.5, 9.4, Math.PI / 2);   // same curb as the player, a bit north
-      this.setPhase('approach', 'Several people are waiting at the crossing. Decide for yourself (W/↑).');
+      this.setPhase('approach', 'Several people are waiting to cross here. Decide for yourself (W/↑).');
     } else if (scenario === 7) {
       // Sound study "Mara": audio only — the screen is blacked out by the UI,
       // the participant must read the scene entirely through the sound layer.
@@ -121,7 +121,7 @@ export class ScenarioRunner {
       // Sound study "Tom": competing music masks the AV cues.
       this.setPhase('approach', '🎧 You are wearing earbuds — music is playing. Cross when you feel safe (W/↑).');
     } else {
-      this.setPhase('approach', 'AV approaching the crossing. Cross when you feel safe (W/↑).');
+      this.setPhase('approach', 'An AV is approaching — no marked crossing here. See whether it yields for you (W/↑).');
     }
   }
 
@@ -271,7 +271,7 @@ export class ScenarioRunner {
           this.setPhase('acknowledgment', 'You crossed — the car waits briefly.');
         } else if (this._timer > 45 && !this.logger.current?.crossed) {
           this.logger.event('timeout_no_crossing');
-          this.setPhase('acknowledgment', 'No crossing — the car continues.');
+          this.setPhase('acknowledgment', 'You stayed — the car continues.');
         }
         break;
       }
@@ -399,7 +399,7 @@ export class ScenarioRunner {
         } else if (this._timer > timeoutS && !this.logger.current?.crossed) {
           this.sound.stopYieldLoop();
           this.logger.event('timeout_no_crossing');
-          this.setPhase('acknowledgment', 'No crossing — AV continues.');
+          this.setPhase('acknowledgment', 'You stayed — the AV continues.');
         }
         break;
       }
