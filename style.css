@@ -56,8 +56,15 @@ button.active { background: #2d4a7a; border-color: #6fa8ff; }
 .intro-list { font-size: 14px; line-height: 1.55; margin: 6px 0 6px; padding-left: 20px; }
 .intro-list li { margin: 4px 0; }
 .intro-note { font-size: 12px; color: #8a96ad; font-style: italic; }
-#introStart { width: 100%; margin-top: 16px; padding: 10px; font-size: 15px; background: #2d4a7a; border-color: #6fa8ff; }
-#introStart:hover { background: #355a93; }
+.intro-step { min-height: 210px; }
+.intro-nav { display: flex; align-items: center; justify-content: space-between; margin-top: 18px; }
+.intro-dots { display: flex; gap: 8px; }
+.intro-dots i { width: 9px; height: 9px; border-radius: 50%; background: rgba(120,160,220,0.3); display: inline-block; transition: background 0.2s; }
+.intro-dots i.on { background: #6fa8ff; }
+.intro-buttons { display: flex; gap: 8px; }
+.intro-buttons button { padding: 9px 18px; font-size: 14px; }
+#introNext, #introStart { background: #2d4a7a; border-color: #6fa8ff; }
+#introNext:hover, #introStart:hover { background: #355a93; }
 
 /* Scenario menu */
 .menu-box { width: 520px; max-height: 80vh; overflow-y: auto; text-align: left; }

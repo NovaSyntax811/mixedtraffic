@@ -238,8 +238,23 @@ function nextProtocolRun() {
   hudMsg.textContent = `Run ${protocol.step + 1} of ${protocol.total} — cross when you feel safe (W/↑).`;
 }
 
-// First-run intro: dismiss it and open the scenario menu so the participant
-// starts by deliberately picking scenario 1.
+// First-run intro: 3 paged steps, then open the scenario menu so the
+// participant starts by deliberately picking scenario 1.
+let introStep = 1;
+const INTRO_STEPS = 3;
+function renderIntroStep() {
+  document.querySelectorAll('.intro-step').forEach((el) => {
+    el.hidden = parseInt(el.dataset.step, 10) !== introStep;
+  });
+  document.querySelectorAll('.intro-dots i').forEach((d) => {
+    d.classList.toggle('on', parseInt(d.dataset.dot, 10) === introStep);
+  });
+  $('introBack').hidden = introStep === 1;
+  $('introNext').hidden = introStep === INTRO_STEPS;
+  $('introStart').hidden = introStep !== INTRO_STEPS;
+}
+$('introNext').addEventListener('click', () => { if (introStep < INTRO_STEPS) { introStep++; renderIntroStep(); } });
+$('introBack').addEventListener('click', () => { if (introStep > 1) { introStep--; renderIntroStep(); } });
 $('introStart').addEventListener('click', () => {
   $('introDialog').classList.add('hidden');
   $('scenarioMenu').classList.remove('hidden');

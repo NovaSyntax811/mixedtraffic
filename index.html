@@ -57,37 +57,52 @@
   <!-- ===== Blackout layer for the audio-only sound study (Mara mode) ===== -->
   <div id="blackout" class="hidden"></div>
 
-  <!-- ===== First-run intro / instructions ===== -->
+  <!-- ===== First-run intro / instructions (3 steps) ===== -->
   <div id="introDialog" class="modal">
     <div class="modal-box intro-box">
       <h2>Crossing the street with an autonomous vehicle</h2>
       <p class="intro-lead">A short study on how self-driving cars should communicate with people on foot.</p>
 
-      <h3>What this is about</h3>
-      <p>Self-driving cars can't nod, wave, or make eye contact the way human drivers do.
-      We are testing an <strong>external interface (eHMI)</strong> that lets the car show its
-      intention through three channels at once: a <strong>light band</strong> (white = driving,
-      yellow = detecting, cyan = yielding), a <strong>windshield display</strong> (👋 "please cross",
-      ☺️ "thank you"), and <strong>synthetic sound</strong>.</p>
+      <div class="intro-step" data-step="1">
+        <h3>1 · What this is about</h3>
+        <p>Self-driving cars can't nod, wave, or make eye contact the way human drivers do.
+        We are testing an <strong>external interface (eHMI)</strong> that lets the car show its
+        intention through three channels at once:</p>
+        <ul class="intro-list">
+          <li>a <strong>light band</strong> — white = driving, yellow = detecting, cyan = yielding</li>
+          <li>a <strong>windshield display</strong> — 👋 "please cross", ☺️ "thank you"</li>
+          <li><strong>synthetic sound</strong> — motor hum, a slowing cue, a go-ahead tone</li>
+        </ul>
+      </div>
 
-      <h3>Why we do it</h3>
-      <p>We want to learn <em>when you feel safe enough to cross</em> — and whether the car's
-      signals actually help you decide, or whether you'd cross anyway. Some scenarios are
-      tricky on purpose (a signal meant for someone else, a cyclist the car never saw,
-      aggressive drivers). There are no right or wrong choices: we study <em>your</em> judgement.</p>
+      <div class="intro-step" data-step="2" hidden>
+        <h3>2 · Why we do it</h3>
+        <p>We want to learn <em>when you feel safe enough to cross</em> — and whether the car's
+        signals actually help you decide, or whether you'd cross anyway.</p>
+        <p>Some scenarios are tricky on purpose: a signal meant for someone else, a cyclist the
+        car never saw, aggressive drivers. There are <strong>no right or wrong choices</strong> —
+        we study <em>your</em> judgement. Your decisions and reaction times are logged anonymously.</p>
+      </div>
 
-      <h3>Your task</h3>
-      <ul class="intro-list">
-        <li>You are the <strong>pedestrian</strong>. Move with <strong>W / A / S / D</strong> or the arrow keys, drag the <strong>mouse</strong> to look around.</li>
-        <li>Watch the approaching vehicle and <strong>decide for yourself when to cross</strong> — there is no prompt telling you to go.</li>
-        <li>Start with <strong>Scenario&nbsp;1 (Baseline)</strong>, then work through the list in order.</li>
-        <li>After each run a <strong>short survey</strong> pops up: why you crossed (or didn't) and how safe you felt (1–7). Please answer honestly — first instinct is fine.</li>
-      </ul>
+      <div class="intro-step" data-step="3" hidden>
+        <h3>3 · Your task</h3>
+        <ul class="intro-list">
+          <li>You are the <strong>pedestrian</strong>. Move with <strong>W / A / S / D</strong> or the arrow keys, drag the <strong>mouse</strong> to look around.</li>
+          <li>Watch the approaching vehicle and <strong>decide for yourself when to cross</strong> — there is no prompt telling you to go.</li>
+          <li>Start with <strong>Scenario&nbsp;1 (Baseline)</strong>, then work through the list in order.</li>
+          <li>After each run a <strong>short survey</strong> pops up: why you crossed (or didn't) and how safe you felt (1–7). Answer honestly — first instinct is fine.</li>
+        </ul>
+        <p class="intro-note">Take your time; you can replay any scenario.</p>
+      </div>
 
-      <p class="intro-note">Your decisions and reaction times are logged anonymously for the research.
-      Take your time; you can replay any scenario.</p>
-
-      <button id="introStart">Got it — choose a scenario</button>
+      <div class="intro-nav">
+        <span class="intro-dots"><i data-dot="1" class="on"></i><i data-dot="2"></i><i data-dot="3"></i></span>
+        <span class="intro-buttons">
+          <button id="introBack" hidden>← Back</button>
+          <button id="introNext">Next →</button>
+          <button id="introStart" hidden>Got it — choose a scenario</button>
+        </span>
+      </div>
     </div>
   </div>
 
@@ -173,6 +188,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=22"></script>
+  <script type="module" src="js/main.js?v=23"></script>
 </body>
 </html>
