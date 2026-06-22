@@ -34,9 +34,10 @@ export function createScene() {
     composer.setSize(window.innerWidth, window.innerHeight);
   });
 
-  // --- Dusk lighting ---
-  scene.add(new THREE.HemisphereLight(0x7d90c8, 0x3a3024, 2.4));
-  const sun = new THREE.DirectionalLight(0xffb070, 2.6); // low warm sun
+  // --- Lighting (adjustable per scenario via setTimeOfDay) ---
+  const hemi = new THREE.HemisphereLight(0x7d90c8, 0x3a3024, 2.4);
+  scene.add(hemi);
+  const sun = new THREE.DirectionalLight(0xffb070, 2.6);
   sun.position.set(-40, 18, 25);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
@@ -46,7 +47,32 @@ export function createScene() {
 
   buildEnvironment(scene);
 
-  return { scene, camera, renderer, composer, bloom };
+  // Time-of-day presets. Most are bright/legible (the dusk-only look was too
+  // dark to read the scene); night is reserved for the audio-only study.
+  const TIMES = {
+    day:       { bg: 0x9fc3e8, hemiSky: 0xbcd4f0, hemiGround: 0x6f6a58, hemiI: 3.4, sunColor: 0xfff4e0, sunI: 3.2, sunPos: [-30, 55, 25], fog: [120, 320], exposure: 1.05, bloom: 0.45 },
+    afternoon: { bg: 0x8fb3d8, hemiSky: 0xaecae8, hemiGround: 0x6a6450, hemiI: 3.0, sunColor: 0xffe6b8, sunI: 3.0, sunPos: [-45, 38, 25], fog: [110, 300], exposure: 1.1, bloom: 0.5 },
+    overcast:  { bg: 0x9aa2ad, hemiSky: 0xb4bcc6, hemiGround: 0x6e6c68, hemiI: 3.1, sunColor: 0xdfe4ea, sunI: 1.4, sunPos: [-20, 60, 20], fog: [90, 240], exposure: 1.08, bloom: 0.5 },
+    dusk:      { bg: 0x35415f, hemiSky: 0x7d90c8, hemiGround: 0x3a3024, hemiI: 2.4, sunColor: 0xffb070, sunI: 2.6, sunPos: [-40, 18, 25], fog: [70, 200], exposure: 1.22, bloom: 0.7 },
+    night:     { bg: 0x141a2e, hemiSky: 0x3a4a78, hemiGround: 0x1c1810, hemiI: 1.2, sunColor: 0x6678b0, sunI: 0.7, sunPos: [-30, 30, 20], fog: [50, 170], exposure: 1.35, bloom: 0.85 },
+  };
+
+  function setTimeOfDay(name) {
+    const t = TIMES[name] || TIMES.afternoon;
+    scene.background = new THREE.Color(t.bg);
+    scene.fog = new THREE.Fog(t.bg, t.fog[0], t.fog[1]);
+    hemi.color.setHex(t.hemiSky);
+    hemi.groundColor.setHex(typeof t.hemiGround === 'number' ? t.hemiGround : 0x3a3024);
+    hemi.intensity = t.hemiI;
+    sun.color.setHex(t.sunColor);
+    sun.intensity = t.sunI;
+    sun.position.set(...t.sunPos);
+    renderer.toneMappingExposure = t.exposure;
+    bloom.strength = t.bloom;
+  }
+  setTimeOfDay('afternoon'); // brighter default
+
+  return { scene, camera, renderer, composer, bloom, setTimeOfDay };
 }
 
 // Layout convention:

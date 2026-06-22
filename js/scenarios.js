@@ -1,6 +1,6 @@
 // Scenario state machines, following the interaction arc:
 // Detection -> Decision -> Action (signal) -> Acknowledgment -> Outcome
-import { LAYOUT } from './scene.js?v=3';
+import { LAYOUT } from './scene.js?v=24';
 
 const ZEBRA = LAYOUT.zebraZ;
 
@@ -140,7 +140,7 @@ export class ScenarioRunner {
     // Observation window after the interaction: let the user watch how the
     // surrounding traffic plays out before the confidence check appears.
     if (this.phase === 'cooldown') {
-      if (this._timer > 7) {
+      if (this._timer > 11) {
         this.running = false;
         this.av.targetSpeed = 0;
         this.setPhase('done', 'Scenario complete.');
@@ -163,7 +163,7 @@ export class ScenarioRunner {
     const d = this.distToZebra;
     switch (this.phase) {
       case 'approach':
-        if (d < 32) {
+        if (d < 42) {
           this.av.setBandState('assessing');
           this.av.setDisplay('detecting');
           this.setPhase('detection', 'AV detected pedestrians (yellow band + eye icon).');
@@ -198,7 +198,7 @@ export class ScenarioRunner {
         const npcDone = this._npcDelay === undefined && this.npcs[0].state !== 'crossing';
         const playerInRoad = Math.abs(this.pedestrian.group.position.x) < LAYOUT.roadWidth / 2 + 0.4;
         // Continue only when the addressee has crossed and nobody is on the road
-        if (!playerInRoad && ((npcDone && this._timer > 4) || this._timer > 40)) {
+        if (!playerInRoad && ((npcDone && this._timer > 6) || this._timer > 60)) {
           this.logger.event('npc_crossing_finished');
           this.av.setDisplay('thanks');
           this.sound.playThanks();
@@ -245,7 +245,7 @@ export class ScenarioRunner {
         if (px > LAYOUT.roadWidth / 2 + 0.5) {
           this.logger.event('crossed_baseline');
           this.setPhase('acknowledgment', 'You crossed — the car waits briefly.');
-        } else if (this._timer > 25 && !this.logger.current?.crossed) {
+        } else if (this._timer > 45 && !this.logger.current?.crossed) {
           this.logger.event('timeout_no_crossing');
           this.setPhase('acknowledgment', 'No crossing — the car continues.');
         }
@@ -327,7 +327,7 @@ export class ScenarioRunner {
     const d = this.distToZebra;
     switch (this.phase) {
       case 'approach':
-        if (d < 32) {
+        if (d < 42) {
           this.av.setBandState('assessing');
           this.av.setDisplay('detecting');
           this.setPhase('detection', 'AV detected you (yellow band + eye icon).');
@@ -365,7 +365,7 @@ export class ScenarioRunner {
         // Wait for pedestrian to fully cross (reach far sidewalk) or time out
         // (audio-only runs get a longer window — orientation by ear takes time)
         const px = this.pedestrian.group.position.x;
-        const timeoutS = this.scenario === 7 ? 45 : 25;
+        const timeoutS = this.scenario === 7 ? 75 : 45;
         if (px > LAYOUT.roadWidth / 2 + 0.5) {
           this.sound.stopYieldLoop();
           this.av.setDisplay('thanks');

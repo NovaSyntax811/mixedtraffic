@@ -38,7 +38,7 @@
     <details id="controls" class="panel">
       <summary>⚙ Controls</summary>
       <div class="controls-body">
-        <label>AV speed <input id="avSpeed" type="range" min="2" max="14" step="0.5" value="8" /><span id="avSpeedVal">8 m/s</span></label>
+        <label>AV speed <input id="avSpeed" type="range" min="2" max="14" step="0.5" value="6" /><span id="avSpeedVal">6 m/s</span></label>
         <label>Volume <input id="volume" type="range" min="0" max="1" step="0.05" value="0.6" /></label>
         <label>Light band brightness <input id="bandBrightness" type="range" min="0.5" max="4" step="0.1" value="2" /></label>
         <label><input id="toggleTraffic" type="checkbox" checked /> Ambient traffic</label>
@@ -51,6 +51,12 @@
 
     <div id="hud" class="panel">
       <span id="hudMsg">Press Start, then decide when to cross.</span>
+    </div>
+
+    <div id="recap" class="panel hidden">
+      <button id="recapClose" title="Dismiss">×</button>
+      <h4 id="recapTitle">Who's who</h4>
+      <div id="recapBody"></div>
     </div>
   </div>
 
@@ -188,6 +194,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=23"></script>
+  <script type="module" src="js/main.js?v=24"></script>
 </body>
 </html>
