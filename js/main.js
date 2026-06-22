@@ -2,10 +2,10 @@
 import * as THREE from 'three';
 import { createScene, LAYOUT } from './scene.js?v=3';
 import { AV } from './vehicle.js?v=18';
-import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=19';
+import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=22';
 import { EHMISound } from './audio.js?v=17';
 import { BehaviorLogger, showConfidenceCheck } from './logger.js?v=15';
-import { ScenarioRunner } from './scenarios.js?v=19';
+import { ScenarioRunner } from './scenarios.js?v=22';
 
 const { scene, camera, renderer, composer } = createScene();
 const av = new AV(scene);
@@ -187,13 +187,13 @@ const $ = (id) => document.getElementById(id);
 
 // ---------- Scenario menu + study modes ----------
 const SCENARIO_LABELS = {
-  1: '1 · Merge', 2: '2 · Pedestrian Crossing', 3: '3 · Edge Case',
-  4: '4 · Baseline (no eHMI)', 5: '5 · Mixed Traffic', 6: '6 · Aggressive Drivers',
+  1: '1 · Baseline (no eHMI)', 2: '2 · Pedestrian Crossing', 3: '3 · Edge Case',
+  4: '4 · Merge', 5: '5 · Mixed Traffic', 6: '6 · Aggressive Drivers',
   7: '7 · Sound Study — Mara', 8: '8 · Sound Study — Tom',
   9: '9 · Ambiguous Signal',
   protocol: '★ Trust Protocol',
 };
-let selectedScenario = 2;
+let selectedScenario = 1;
 let protocol = null; // { step, total } while the trust protocol is running
 
 function setBlackout(on) { $('blackout').classList.toggle('hidden', !on); }
@@ -237,6 +237,13 @@ function nextProtocolRun() {
   beginRun(edge ? 3 : 2, { quietEdge: true, protocolStep: protocol.step + 1 });
   hudMsg.textContent = `Run ${protocol.step + 1} of ${protocol.total} — cross when you feel safe (W/↑).`;
 }
+
+// First-run intro: dismiss it and open the scenario menu so the participant
+// starts by deliberately picking scenario 1.
+$('introStart').addEventListener('click', () => {
+  $('introDialog').classList.add('hidden');
+  $('scenarioMenu').classList.remove('hidden');
+});
 
 $('menuBtn').addEventListener('click', () => $('scenarioMenu').classList.remove('hidden'));
 $('menuClose').addEventListener('click', () => $('scenarioMenu').classList.add('hidden'));
@@ -461,7 +468,11 @@ function animate() {
   if (sirenActive && !sirenWasActive) sound.startSiren();
   if (!sirenActive && sirenWasActive) sound.stopSiren();
   sirenWasActive = sirenActive;
-  mergingCar.update(dt);
+  // Merging car must not run over a standing/walking pedestrian — feed it the
+  // pedestrian + NPCs as obstacles so it waits instead of crashing through.
+  const pedObstacles = [{ pos: pedestrian.group.position, r: 0.8, name: 'pedestrian' }];
+  for (const n of npcs) if (n.group.visible) pedObstacles.push({ pos: n.group.position, r: 0.8, name: 'pedestrian' });
+  mergingCar.update(dt, pedObstacles);
   runner.update(dt);
   checkPedestrianCollisions();
   checkVehicleCollisions();

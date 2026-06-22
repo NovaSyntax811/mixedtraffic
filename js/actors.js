@@ -627,17 +627,29 @@ export class MergingCar {
   merge() { if (this.state === 'waiting') this.state = 'merging'; }
   hide() { this.state = 'hidden'; this.group.visible = false; }
 
-  update(dt) {
+  update(dt, obstacles = []) {
     if (this.state !== 'merging') return;
-    // Simple arc: advance + turn from +X heading to +Z heading
-    this._mergeT = Math.min(1, this._mergeT + dt / 2.4);
-    const t = this._mergeT;
-    const ease = t * t * (3 - 2 * t);
-    this.group.rotation.y = Math.PI / 2 - ease * (Math.PI / 2);
-    this.group.position.x = -9 + ease * 7.1;     // ends at x = -1.9 (AV lane)
-    this.group.position.z = 1.9 + ease * 6 + t * t * 10;
-    if (t >= 1) {
-      this.group.position.z += 8 * dt; // drive off
+    // A real merging driver does not drive into a person standing or walking
+    // in the way — pause the maneuver while a pedestrian is in the path
+    // ahead, so a bystander never gets run over. Resumes once clear.
+    const ry = this.group.rotation.y;
+    const fwd = new THREE.Vector3(Math.sin(ry), 0, Math.cos(ry));
+    if (blockingObstacle(this.group.position, fwd, obstacles, 5, 1.0)) return;
+    if (this._mergeT < 1) {
+      // Arc phase: advance + turn from +X heading to +Z heading
+      this._mergeT = Math.min(1, this._mergeT + dt / 2.4);
+      const t = this._mergeT;
+      const ease = t * t * (3 - 2 * t);
+      this.group.rotation.y = Math.PI / 2 - ease * (Math.PI / 2);
+      this.group.position.x = -9 + ease * 7.1;     // ends at x = -1.9 (AV lane)
+      this.group.position.z = 1.9 + ease * 6 + t * t * 10;
+    } else {
+      // Merged — drive straight off down the lane. (Previously the arc
+      // formula re-set z every frame, so the car stuck in place and the AV
+      // rear-ended it when it resumed.)
+      this.group.rotation.y = 0;
+      this.group.position.x = -1.9;
+      this.group.position.z += 9 * dt;
       if (this.group.position.z > 70) this.hide();
     }
   }

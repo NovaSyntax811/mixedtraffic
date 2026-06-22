@@ -44,9 +44,10 @@ export class ScenarioRunner {
     this.running = true;
     this.logger.startRun(scenario);
 
-    if (scenario === 4) {
+    if (scenario === 1) {
       // Baseline: same yielding interaction, but a human-driven car and no
-      // eHMI of any kind — the comparison condition.
+      // eHMI of any kind — the comparison condition. (Scenario 1 = first in
+      // the study order so participants see the control before any eHMI.)
       this.av.group.visible = false;
       this.humanCar.spawn();
       this.humanCar.targetSpeed = this.approachSpeed;
@@ -58,9 +59,13 @@ export class ScenarioRunner {
     this.av.setBandState('neutral');
     this.av.setDisplay('off');
 
-    if (scenario === 1) {
+    if (scenario === 4) {
       this.mergingCar.spawnWaiting();
-      this.setPhase('approach', 'AV approaching — a car waits to merge from the left.');
+      // Stand the observer south on the west sidewalk, clear of the merge arc
+      // (the default curb spot sits right on the car's path). The car still
+      // waits rather than crashes if the player walks into its way.
+      this.pedestrian.group.position.set(-5.5, 0, -7);
+      this.setPhase('approach', 'AV approaching — a car waits to merge from the left. Watch the interaction.');
     } else if (scenario === 5) {
       // Mixed-traffic chaos: bus, truck, side-street cyclist, and an
       // emergency vehicle everyone has to yield to. Actors behave differently.
@@ -144,8 +149,8 @@ export class ScenarioRunner {
       return;
     }
 
-    if (this.scenario === 1) this._updateMerge(dt);
-    else if (this.scenario === 4) this._updateBaseline(dt);
+    if (this.scenario === 4) this._updateMerge(dt);
+    else if (this.scenario === 1) this._updateBaseline(dt);
     else if (this.scenario === 9) this._updateAmbiguous(dt);
     else this._updateCrossing(dt);
   }
@@ -302,7 +307,15 @@ export class ScenarioRunner {
       case 'outcome':
         if (this._timer > 1.8) {
           this.av.setDisplay('off');
-          this.av.targetSpeed = this.approachSpeed;
+          // Car-following: keep a safe gap behind the merged car rather than
+          // rear-ending it; resume full speed once it is far enough ahead.
+          const mc = this.mergingCar;
+          if (mc.group.visible && mc.group.position.z > this.av.frontZ) {
+            const gap = mc.group.position.z - this.av.frontZ;
+            this.av.targetSpeed = Math.max(0, Math.min((gap - 6) * 1.2, this.approachSpeed));
+          } else {
+            this.av.targetSpeed = this.approachSpeed;
+          }
         }
         if (this.av.group.position.z > 50) this._finish();
         break;
