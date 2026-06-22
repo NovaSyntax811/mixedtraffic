@@ -5,7 +5,7 @@ import { AV } from './vehicle.js?v=18';
 import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=26';
 import { EHMISound } from './audio.js?v=17';
 import { BehaviorLogger, showConfidenceCheck } from './logger.js?v=15';
-import { ScenarioRunner } from './scenarios.js?v=28';
+import { ScenarioRunner } from './scenarios.js?v=29';
 
 const { scene, camera, renderer, composer, setTimeOfDay } = createScene();
 
@@ -427,7 +427,12 @@ function checkVehicleCollisions() {
   if (av.group.visible) bodies.push({ name: 'AV', g: av.group, hl: 2.05, speed: Math.abs(av.speed), stop: () => { av.targetSpeed = 0; av.speed = 0; } });
   if (humanCar.group.visible) bodies.push({ name: 'car', g: humanCar.group, hl: 2.05, speed: Math.abs(humanCar.speed), stop: () => { humanCar.targetSpeed = 0; humanCar.speed = 0; } });
   if (mergingCar.group.visible) bodies.push({ name: 'merging car', g: mergingCar.group, hl: 2.05, speed: mergingCar.state === 'merging' ? 3 : 0, stop: () => { mergingCar.state = 'waiting'; } });
-  for (const c of traffic.cars) bodies.push({ name: c.kind ?? 'car', g: c.mesh, hl: c.hl ?? 2.05, speed: Math.abs(c.speed), stop: () => { c.speed = 0; c.cruise = 0; } });
+  // Scripted aggressive cars (honking tailgater / oncoming) perform a
+  // choreographed near-miss overtake into the oncoming lane — that is the
+  // point of the scenario. They must not register as a car–car accident
+  // (they would otherwise clip oncoming traffic by ~0.3m). They can still hit
+  // the pedestrian (checkPedestrianCollisions handles that danger).
+  for (const c of traffic.cars) bodies.push({ name: c.kind ?? 'car', g: c.mesh, hl: c.hl ?? 2.05, speed: Math.abs(c.speed), aggressive: !!(c.overtakeAV || c.honkWhenBlocked), stop: () => { c.speed = 0; c.cruise = 0; } });
 
   // Contact needs real body overlap: queued traffic stands well apart
   // (circle gap ≥1.7), a T-bone hit reaches gap ~1.25 — threshold sits between.
@@ -450,6 +455,7 @@ function checkVehicleCollisions() {
     for (let j = i + 1; j < bodies.length; j++) {
       const a = bodies[i], b = bodies[j];
       if (a.speed < 0.8 && b.speed < 0.8) continue; // both standing — no crash
+      if (a.aggressive || b.aggressive) continue;   // choreographed near-miss, not a crash
       const ca = circles(a), cb = circles(b);
       let hit = false;
       for (const p of ca) for (const q of cb) if (p.distanceTo(q) < CONTACT) hit = true;
