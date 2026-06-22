@@ -1,6 +1,6 @@
 // User-controlled pedestrian + secondary actors (cyclist, merging car, ambient traffic).
 import * as THREE from 'three';
-import { LAYOUT } from './scene.js?v=24';
+import { LAYOUT } from './scene.js?v=27';
 
 // Shared obstacle check: is anything in `obstacles` blocking the path ahead?
 // Returns the blocking obstacle, or null. `forward` must be normalized (XZ plane).
@@ -93,9 +93,9 @@ export class Pedestrian {
     if (this.moving) {
       this.group.position.x += dir.x * this.speed * dt;
       this.group.position.z += dir.y * this.speed * dt;
-      // keep the pedestrian near the crossing area
-      this.group.position.x = THREE.MathUtils.clamp(this.group.position.x, -8, 8);
-      this.group.position.z = THREE.MathUtils.clamp(this.group.position.z, LAYOUT.zebraZ - 5, LAYOUT.zebraZ + 6);
+      // Free roam — only keep the player on the ground plane
+      this.group.position.x = THREE.MathUtils.clamp(this.group.position.x, -100, 100);
+      this.group.position.z = THREE.MathUtils.clamp(this.group.position.z, -100, 100);
       this.heading = Math.atan2(dir.x, dir.y);
       // smooth turn
       const cur = this.group.rotation.y;

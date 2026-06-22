@@ -1,11 +1,11 @@
 // Entry point: wires scene, actors, audio, scenarios, cameras, input, UI, logging.
 import * as THREE from 'three';
-import { createScene, LAYOUT } from './scene.js?v=24';
+import { createScene, LAYOUT } from './scene.js?v=27';
 import { AV } from './vehicle.js?v=18';
-import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=22';
+import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=26';
 import { EHMISound } from './audio.js?v=17';
 import { BehaviorLogger, showConfidenceCheck } from './logger.js?v=15';
-import { ScenarioRunner } from './scenarios.js?v=24';
+import { ScenarioRunner } from './scenarios.js?v=26';
 
 const { scene, camera, renderer, composer, setTimeOfDay } = createScene();
 

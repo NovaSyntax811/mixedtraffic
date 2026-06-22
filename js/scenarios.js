@@ -1,8 +1,9 @@
 // Scenario state machines, following the interaction arc:
 // Detection -> Decision -> Action (signal) -> Acknowledgment -> Outcome
-import { LAYOUT } from './scene.js?v=24';
+import { LAYOUT } from './scene.js?v=27';
 
 const ZEBRA = LAYOUT.zebraZ;
+const PREROLL = 9; // seconds the vehicle waits at the start (free-walk lead-in)
 
 export class ScenarioRunner {
   constructor({ av, humanCar, pedestrian, cyclist, mergingCar, traffic, npcs, sound, logger, onPhase, onMessage, onComplete }) {
@@ -17,7 +18,7 @@ export class ScenarioRunner {
   setPhase(p, msg) {
     this.phase = p;
     this.onPhase?.(p);
-    if (msg) this.onMessage?.(msg);
+    if (msg) { this.onMessage?.(msg); this._lastMsg = msg; }
     this._timer = 0;
   }
 
@@ -34,6 +35,7 @@ export class ScenarioRunner {
     this.sound?.stopYieldLoop?.();
     this._timeline = null;
     this._elapsed = 0;
+    this._preroll = 0;
     this.quietEdge = false;
     this.setPhase('idle', 'Press Start, then decide when to cross.');
   }
@@ -43,6 +45,9 @@ export class ScenarioRunner {
     this.scenario = scenario;
     this.running = true;
     this.logger.startRun(scenario);
+    // Free-walk lead-in: the vehicle holds for a few seconds so the player can
+    // walk around and get oriented before it starts approaching.
+    this._preroll = PREROLL;
 
     if (scenario === 1) {
       // Baseline: same yielding interaction, but a human-driven car and no
@@ -127,6 +132,25 @@ export class ScenarioRunner {
 
   update(dt) {
     if (!this.running) return;
+
+    // Free-walk lead-in: hold the vehicles, let the player roam, then release.
+    if (this._preroll > 0) {
+      this.av.targetSpeed = 0;
+      this.humanCar.targetSpeed = 0;
+      if (this._prerollMsg !== true) {
+        this.onMessage?.('Take a moment — walk around. The vehicle will start approaching shortly.');
+        this._prerollMsg = true;
+      }
+      this._preroll -= dt;
+      if (this._preroll <= 0) {
+        this._prerollMsg = false;
+        if (this.scenario === 1) this.humanCar.targetSpeed = this.approachSpeed;
+        else this.av.targetSpeed = this.approachSpeed;
+        if (this._lastMsg) this.onMessage?.(this._lastMsg); // restore scenario message
+      }
+      return;
+    }
+
     this._timer += dt;
     this._elapsed = (this._elapsed ?? 0) + dt;
 
