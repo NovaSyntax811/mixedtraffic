@@ -37,18 +37,19 @@ const SCENARIO_RECAP = {
   8: { title: 'Sound study — you are Tom', lines: [['🎧 Tom (you)', 'distracted, one earbud in'], ['🎵 Music is playing', 'it competes with and masks the car\'s cues — decide anyway']] },
   9: { title: 'Ambiguous signal — who\'s who', lines: [['🚐 The AV', 'yields and shows 👋'], ['🚶 🚶 Other pedestrians', 'also waiting — one of them may be who the signal is for'], ['🚶 You', 'decide whether the signal is meant for you']] },
 };
-let recapTimer = null;
-function showRecap(scenario) {
+// Show the centered "who's who" briefing for a scenario; the run starts when
+// the user confirms (recapStart). Falls back to running directly if there is
+// no briefing for that scenario.
+let pendingScenario = null;
+function showBriefing(scenario) {
   const r = SCENARIO_RECAP[scenario];
-  const el = $('recap');
-  if (!r) { el.classList.add('hidden'); return; }
+  if (!r) { beginRun(scenario); return; }
+  pendingScenario = scenario;
   $('recapTitle').textContent = r.title;
   $('recapBody').innerHTML = r.lines
     .map(([who, what]) => `<div class="recap-line"><span class="who">${who}</span> — ${what}</div>`)
     .join('');
-  el.classList.remove('hidden');
-  clearTimeout(recapTimer);
-  recapTimer = setTimeout(() => el.classList.add('hidden'), 16000); // auto-dismiss
+  $('recap').classList.remove('hidden');
 }
 const av = new AV(scene);
 const pedestrian = new Pedestrian(scene);
@@ -252,10 +253,7 @@ function beginRun(scenario, { quietEdge = false, protocolStep = null } = {}) {
   if (scenario === 8) sound.startDistractor();            // Tom: masking music
   else sound.stopDistractor();
 
-  // Who's-who briefing — suppressed during the trust protocol so the
-  // unannounced edge case (run 5) is not given away.
-  if (protocolStep === null) showRecap(scenario);
-  else $('recap').classList.add('hidden');
+  $('recap').classList.add('hidden'); // briefing (if any) already confirmed
 
   logger.nextMeta = {
     soundVolume: sound.volume,
@@ -270,11 +268,12 @@ function beginRun(scenario, { quietEdge = false, protocolStep = null } = {}) {
 
 function startSelected() {
   if (selectedScenario === 'protocol') {
+    // No per-run briefing — it would spoil the unannounced edge case.
     protocol = { step: 0, total: 5 };
     nextProtocolRun();
   } else {
     protocol = null;
-    beginRun(selectedScenario);
+    showBriefing(selectedScenario); // centered "who's who" → Start scenario
   }
 }
 
@@ -301,7 +300,14 @@ function renderIntroStep() {
   $('introNext').hidden = introStep === INTRO_STEPS;
   $('introStart').hidden = introStep !== INTRO_STEPS;
 }
-$('recapClose').addEventListener('click', () => { clearTimeout(recapTimer); $('recap').classList.add('hidden'); });
+$('recapStart').addEventListener('click', () => {
+  $('recap').classList.add('hidden');
+  if (pendingScenario !== null) beginRun(pendingScenario);
+});
+$('recapCancel').addEventListener('click', () => {
+  $('recap').classList.add('hidden');
+  $('scenarioMenu').classList.remove('hidden');
+});
 $('introNext').addEventListener('click', () => { if (introStep < INTRO_STEPS) { introStep++; renderIntroStep(); } });
 $('introBack').addEventListener('click', () => { if (introStep > 1) { introStep--; renderIntroStep(); } });
 $('introStart').addEventListener('click', () => {

@@ -52,11 +52,17 @@
     <div id="hud" class="panel">
       <span id="hudMsg">Press Start, then decide when to cross.</span>
     </div>
+  </div>
 
-    <div id="recap" class="panel hidden">
-      <button id="recapClose" title="Dismiss">×</button>
-      <h4 id="recapTitle">Who's who</h4>
+  <!-- ===== Scenario briefing / "who's who" (centered; starts the run) ===== -->
+  <div id="recap" class="modal hidden">
+    <div class="modal-box recap-box">
+      <h3 id="recapTitle">Who's who</h3>
       <div id="recapBody"></div>
+      <div class="recap-actions">
+        <button id="recapCancel">← Back to menu</button>
+        <button id="recapStart">▶ Start scenario</button>
+      </div>
     </div>
   </div>
 
@@ -194,6 +200,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=24"></script>
+  <script type="module" src="js/main.js?v=25"></script>
 </body>
 </html>

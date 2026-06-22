@@ -66,14 +66,16 @@ button.active { background: #2d4a7a; border-color: #6fa8ff; }
 #introNext, #introStart { background: #2d4a7a; border-color: #6fa8ff; }
 #introNext:hover, #introStart:hover { background: #355a93; }
 
-/* Character recap card (top-center, non-blocking, auto-dismiss) */
-#recap { position: absolute; top: 64px; left: 50%; transform: translateX(-50%); width: 440px; max-width: 90vw; padding: 12px 16px; }
-#recap.hidden { display: none; }
-#recap h4 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.07em; color: #9fb4d8; }
-#recap .recap-line { font-size: 13px; line-height: 1.5; margin: 3px 0; color: #e8ecf5; }
-#recap .recap-line .who { font-weight: 600; }
-#recapClose { position: absolute; top: 6px; right: 8px; background: none; border: none; font-size: 20px; line-height: 1; padding: 2px 6px; color: #9fb4d8; }
-#recapClose:hover { background: rgba(120,160,220,0.15); }
+/* Scenario briefing ("who's who") — centered modal that starts the run */
+.recap-box { width: 480px; max-width: 92vw; text-align: left; }
+.recap-box h3 { text-align: center; font-size: 17px; text-transform: none; letter-spacing: 0; margin-bottom: 12px; }
+#recapBody { margin-bottom: 18px; }
+#recapBody .recap-line { font-size: 14px; line-height: 1.55; margin: 8px 0; color: #e8ecf5; }
+#recapBody .recap-line .who { font-weight: 600; }
+.recap-actions { display: flex; gap: 8px; justify-content: space-between; align-items: center; }
+#recapStart { background: #2d4a7a; border-color: #6fa8ff; padding: 9px 18px; font-size: 14px; }
+#recapStart:hover { background: #355a93; }
+#recapCancel { font-size: 13px; color: #9fb4d8; }
 
 /* Scenario menu */
 .menu-box { width: 520px; max-height: 80vh; overflow-y: auto; text-align: left; }
