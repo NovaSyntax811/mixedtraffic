@@ -1,11 +1,11 @@
 // Entry point: wires scene, actors, audio, scenarios, cameras, input, UI, logging.
 import * as THREE from 'three';
 import { createScene, LAYOUT } from './scene.js?v=28';
-import { AV } from './vehicle.js?v=34';
+import { AV } from './vehicle.js?v=36';
 import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=35';
 import { EHMISound } from './audio.js?v=17';
 import { BehaviorLogger, showConfidenceCheck } from './logger.js?v=15';
-import { ScenarioRunner } from './scenarios.js?v=34';
+import { ScenarioRunner } from './scenarios.js?v=36';
 
 const { scene, camera, renderer, composer, setTimeOfDay } = createScene();
 
@@ -27,15 +27,15 @@ const SCENARIO_LIGHTING = {
 // Quick "who's who" briefing shown at the start of each scenario, so the
 // named characters and their behaviours don't have to be remembered.
 const SCENARIO_RECAP = {
-  1: { title: 'A car with no signals', lines: [['🚗 Human-driven car', 'an ordinary driver, no signals at all'], ['🚶 You', 'there is no crossing here — decide for yourself if and when to cross']] },
-  2: { title: 'A car that lets you cross', lines: [['🚐 Self-driving car', 'communicates with light band, windshield display and sound'], ['🤝 No marked crossing', 'you have no right of way — if the car stops, it is letting you cross by choice'], ['🚶 You', 'read its signals and cross when you feel safe']] },
-  3: { title: 'The car missed a cyclist', lines: [['🚐 The car', 'detects you and yields — light band, 👋, tone'], ['🚴 Cyclist', 'races up from behind and will NOT stop for you — the car never saw it'], ['🚶 You', 'the signal is honest, but it only speaks for that one car — keep watching']] },
-  4: { title: 'A signal for the other car', lines: [['🚐 The car', 'yields and shows "After you 🚗" — addressed to the other driver'], ['🚗 Human driver', 'waits at the side street to merge in'], ['🚶 You', 'the signal is for the car — decide whether it is an invitation for you too']] },
-  5: { title: 'A busy intersection', lines: [['🚌 Bus, 🚚 truck, 🚴 cyclist', 'ordinary traffic, each behaving differently'], ['🚑 Ambulance', 'siren on — everyone pulls over for it'], ['🚶 You', 'cross amid the chaos when you judge it safe']] },
-  6: { title: 'Impatient drivers', lines: [['🚐 The cautious car', 'yields for you, correctly'], ['🚗 Impatient driver', 'tailgates, honks, and overtakes right across your path'], ['🚶 You', 'the car is safe — the others are not']] },
-  7: { title: 'Crossing by ear — you are blind', lines: [['🦯 You', 'cannot see; you read the street by ear'], ['🔊 The screen is black', 'the car\'s sound is your only cue — listen for it and where it comes from']] },
-  8: { title: 'Crossing distracted', lines: [['🎧 You', 'have one earbud in, looking at your phone'], ['🎵 Music is playing', 'it competes with and masks the car\'s cues — decide anyway']] },
-  9: { title: 'Is the signal for you?', lines: [['🚐 The car', 'yields and shows 👋'], ['🚶 🚶 Other people', 'also waiting — one of them may be who the signal is for'], ['🚶 You', 'decide whether the signal is meant for you']] },
+  1: { title: 'A car with no signals', lines: [['🚗 Ordinary car', 'driven by a person, with no signals at all'], ['🚶 You', 'there is no crossing here, so decide for yourself if and when to cross']] },
+  2: { title: 'A car that lets you cross', lines: [['🚐 Automated car', 'communicates with a light band, a windshield display and sound'], ['🤝 No marked crossing', 'you have no right of way, so if the car stops it is letting you cross by choice'], ['🚶 You', 'read its signals and cross when you feel safe']] },
+  3: { title: 'The car missed a cyclist', lines: [['🚐 The car', 'detects you and yields with its light band, the wave and a tone'], ['🚴 Cyclist', 'races up from behind and will NOT stop for you, because the car never saw it'], ['🚶 You', 'the signal is honest, but it only speaks for that one car, so keep watching']] },
+  4: { title: 'A signal for the other car', lines: [['🚐 The car', 'yields and shows "After you 🚗", addressed to the other driver'], ['🚗 Other driver', 'waits at the side street to merge in'], ['🚶 You', 'the signal is for the car, so decide whether it is an invitation for you too']] },
+  5: { title: 'A busy intersection', lines: [['🚌 Bus, 🚚 truck, 🚴 cyclist', 'ordinary traffic, each behaving differently'], ['🚑 Ambulance', 'siren on, so everyone pulls over for it'], ['🚶 You', 'cross amid the chaos when you judge it safe']] },
+  6: { title: 'Impatient drivers', lines: [['🚐 The cautious car', 'yields for you, correctly'], ['🚗 Impatient driver', 'tailgates, honks, and overtakes right across your path'], ['🚶 You', 'the car is safe, the others are not']] },
+  7: { title: 'Crossing by ear, you are blind', lines: [['🦯 You', 'cannot see, so you read the street by ear'], ['🔊 The screen is black', 'the car\'s sound is your only cue, so listen for it and where it comes from']] },
+  8: { title: 'Crossing distracted', lines: [['🎧 You', 'have one earbud in, looking at your phone'], ['🎵 Music is playing', 'it competes with and masks the car\'s cues, so decide anyway']] },
+  9: { title: 'Is the signal for you?', lines: [['🚐 The car', 'yields and shows 👋'], ['🚶 🚶 Other people', 'also waiting, and one of them may be who the signal is for'], ['🚶 You', 'decide whether the signal is meant for you']] },
 };
 // Show the centered "who's who" briefing for a scenario; the run starts when
 // the user confirms (recapStart). Falls back to running directly if there is
@@ -47,7 +47,7 @@ function showBriefing(scenario) {
   pendingScenario = scenario;
   $('recapTitle').textContent = r.title;
   $('recapBody').innerHTML = r.lines
-    .map(([who, what]) => `<div class="recap-line"><span class="who">${who}</span> — ${what}</div>`)
+    .map(([who, what]) => `<div class="recap-line"><span class="who">${who}</span>: ${what}</div>`)
     .join('');
   $('recap').classList.remove('hidden');
 }
@@ -82,7 +82,7 @@ const runner = new ScenarioRunner({
       protocol.step += 1;
       if (protocol.step < protocol.total) { nextProtocolRun(); return; }
       protocol = null;
-      hudMsg.textContent = 'Trust protocol complete — download the log to see scanning behavior across runs.';
+      hudMsg.textContent = 'Repeated crossings complete. Download the log to see scanning behaviour across runs.';
       return;
     }
     hudMsg.textContent = 'Logged. Pick a scenario and press Start for another run.';
@@ -282,7 +282,7 @@ function startSelected() {
 function nextProtocolRun() {
   const edge = protocol.step === protocol.total - 1;
   beginRun(edge ? 3 : 2, { quietEdge: true, protocolStep: protocol.step + 1 });
-  hudMsg.textContent = `Run ${protocol.step + 1} of ${protocol.total} — cross when you feel safe (W/↑).`;
+  hudMsg.textContent = `Run ${protocol.step + 1} of ${protocol.total}. Cross when you feel safe (W/↑).`;
 }
 
 // First-run intro: 3 paged steps, then open the scenario menu so the
@@ -375,7 +375,7 @@ $('accidentOk').addEventListener('click', () => {
   setBlackout(false);
   sound.stopDistractor();
   runner.reset();
-  if (wasProtocol) hudMsg.textContent = 'Trust protocol ended in an accident — download the log.';
+  if (wasProtocol) hudMsg.textContent = 'The repeated crossings ended in an accident. Download the log.';
   // clear ambient traffic so a crashed pair doesn't re-trigger immediately
   const trafficWasOn = traffic.enabled;
   traffic.setEnabled(false);

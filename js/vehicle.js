@@ -217,7 +217,7 @@ export class AV {
       const bob = Math.sin((this._displayAnimT ?? 0) * 6) * 10; // waving motion
       ctx.font = '205px system-ui';
       ctx.fillText('👋', W / 2 + bob, 180);
-      pill('Yielding — please cross', 366, 104, 56);
+      pill('Yielding, please cross', 366, 104, 56);
     } else if (this.displayMode === 'yielding_car') {
       // Addressed to the other car, not the pedestrian: "After you 🚗"
       ctx.font = '150px system-ui';

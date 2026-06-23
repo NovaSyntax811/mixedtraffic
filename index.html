@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>eHMI Simulation — Prosocial AV Communication</title>
+<title>eHMI Simulation · Prosocial AV Communication</title>
 <link rel="stylesheet" href="style.css" />
 <script type="importmap">
 {
@@ -28,7 +28,7 @@
     </div>
 
     <div id="camerabar" class="panel">
-      <button data-cam="pedestrian" class="active" title="Pedestrian first-person view">1</button>
+      <button data-cam="pedestrian" class="active" title="Pedestrian view (first person)">1</button>
       <button data-cam="cyclist" title="Cyclist view">2</button>
       <button data-cam="observer" title="Observer view">3</button>
       <button data-cam="cinematic" title="Cinematic tracking shot">4</button>
@@ -73,38 +73,38 @@
   <div id="introDialog" class="modal">
     <div class="modal-box intro-box">
       <h2>Crossing the street with an autonomous vehicle</h2>
-      <p class="intro-lead">A short study on how self-driving cars should communicate with people on foot.</p>
+      <p class="intro-lead">A short study on how automated cars should communicate with people on foot.</p>
 
       <div class="intro-step" data-step="1">
         <h3>1 · What this is about</h3>
-        <p>Self-driving cars can't nod, wave, or make eye contact the way human drivers do.
+        <p>Automated cars can't nod, wave, or make eye contact the way human drivers do.
         We are testing an <strong>external interface (eHMI)</strong> that lets the car show its
         intention through three channels at once:</p>
         <ul class="intro-list">
-          <li>a <strong>light band</strong> — white = driving, yellow = detecting, cyan = yielding</li>
-          <li>a <strong>windshield display</strong> — 👋 "please cross", ☺️ "thank you"</li>
-          <li><strong>synthetic sound</strong> — motor hum, a slowing cue, a go-ahead tone</li>
+          <li>a <strong>light band</strong> that is white when driving, yellow when detecting, cyan when yielding</li>
+          <li>a <strong>windshield display</strong> showing 👋 "please cross" or ☺️ "thank you"</li>
+          <li><strong>synthetic sound</strong>: a motor hum, a slowing cue, a tone that says go ahead</li>
         </ul>
       </div>
 
       <div class="intro-step" data-step="2" hidden>
         <h3>2 · Why we do it</h3>
-        <p>We want to learn <em>when you feel safe enough to cross</em> — and whether the car's
+        <p>We want to learn <em>when you feel safe enough to cross</em>, and whether the car's
         signals actually help you decide, or whether you'd cross anyway.</p>
         <p>There are <strong>no marked crossings</strong> here. When a car stops to let you cross,
         it is yielding <em>by choice</em> (prosocially), not because the law obliges it.</p>
         <p>Some scenarios are tricky on purpose: a signal meant for someone else, a cyclist the
-        car never saw, aggressive drivers. There are <strong>no right or wrong choices</strong> —
-        we study <em>your</em> judgement. Your decisions and reaction times are logged anonymously.</p>
+        car never saw, aggressive drivers. There are <strong>no right or wrong choices</strong>.
+        We study <em>your</em> judgement. Your decisions and reaction times are logged anonymously.</p>
       </div>
 
       <div class="intro-step" data-step="3" hidden>
         <h3>3 · Your task</h3>
         <ul class="intro-list">
           <li>You are the <strong>pedestrian</strong>. Move with <strong>W / A / S / D</strong> or the arrow keys, drag the <strong>mouse</strong> to look around.</li>
-          <li>Watch the approaching vehicle and <strong>decide for yourself when to cross</strong> — there is no prompt telling you to go.</li>
+          <li>Watch the approaching vehicle and <strong>decide for yourself when to cross</strong>. There is no prompt telling you to go.</li>
           <li>Start with <strong>Scenario&nbsp;1</strong>, then work through the list in order.</li>
-          <li>After each run a <strong>short survey</strong> pops up: why you crossed (or didn't) and how safe you felt (1–7). Answer honestly — first instinct is fine.</li>
+          <li>After each run a <strong>short survey</strong> pops up: why you crossed (or didn't) and how safe you felt (1 to 7). Answer honestly, your first instinct is fine.</li>
         </ul>
         <p class="intro-note">Take your time; you can replay any scenario.</p>
       </div>
@@ -114,7 +114,7 @@
         <span class="intro-buttons">
           <button id="introBack" hidden>← Back</button>
           <button id="introNext">Next →</button>
-          <button id="introStart" hidden>Got it — choose a scenario</button>
+          <button id="introStart" hidden>Got it, choose a scenario</button>
         </span>
       </div>
     </div>
@@ -125,16 +125,16 @@
     <div class="modal-box menu-box">
       <h3>Scenarios</h3>
       <div class="scenario-list">
-        <button class="scenario-card" data-scenario="1"><strong>1 · A car with no signals</strong><span>An ordinary human-driven car, no signals at all. Your reference run — cross whenever you judge it safe.</span></button>
-        <button class="scenario-card" data-scenario="2"><strong>2 · A car that lets you cross</strong><span>A self-driving car shows its intent — light band, windshield display and sound — and chooses to let you cross, even though there is no marked crossing.</span></button>
-        <button class="scenario-card" data-scenario="3"><strong>3 · The car missed a cyclist</strong><span>The car detects you and yields, but a cyclist races up from behind that it never saw. Its signal only speaks for that one car — keep watching the road yourself.</span></button>
-        <button class="scenario-card" data-scenario="4"><strong>4 · A signal for the other car</strong><span>The car yields and signals "After you" to let another driver merge in from a side street. The message is for the car — but is it also an invitation for you? Decide for yourself.</span></button>
+        <button class="scenario-card" data-scenario="1"><strong>1 · A car with no signals</strong><span>An ordinary car driven by a person, with no signals at all. Your reference run, so cross whenever you judge it safe.</span></button>
+        <button class="scenario-card" data-scenario="2"><strong>2 · A car that lets you cross</strong><span>An automated car shows its intent with a light band, a windshield display and sound, and chooses to let you cross even though there is no marked crossing.</span></button>
+        <button class="scenario-card" data-scenario="3"><strong>3 · The car missed a cyclist</strong><span>The car detects you and yields, but a cyclist races up from behind that it never saw. Its signal only speaks for that one car, so keep watching the road yourself.</span></button>
+        <button class="scenario-card" data-scenario="4"><strong>4 · A signal for the other car</strong><span>The car yields and signals "After you" to let another driver merge in from a side street. The message is for the car, but is it also an invitation for you? Decide for yourself.</span></button>
         <button class="scenario-card" data-scenario="5"><strong>5 · A busy intersection</strong><span>A bus, a truck, a cyclist and an ambulance everyone pulls over for. Judge your crossing in the middle of it all.</span></button>
-        <button class="scenario-card" data-scenario="6"><strong>6 · Impatient drivers</strong><span>The car yields for you correctly, but an impatient driver behind it honks and overtakes right across your path. The car is safe — the others are not.</span></button>
-        <button class="scenario-card" data-scenario="7"><strong>7 · Crossing by ear</strong><span>You are blind and read the street by ear. The screen is black — cross guided only by the car's sound and where it comes from.</span></button>
+        <button class="scenario-card" data-scenario="6"><strong>6 · Impatient drivers</strong><span>The car yields for you correctly, but an impatient driver behind it honks and overtakes right across your path. The car is safe. The others are not.</span></button>
+        <button class="scenario-card" data-scenario="7"><strong>7 · Crossing by ear</strong><span>You are blind and read the street by ear. The screen is black, so cross guided only by the car's sound and where it comes from.</span></button>
         <button class="scenario-card" data-scenario="8"><strong>8 · Crossing distracted</strong><span>You have one earbud in and music playing, which masks the car's cues. Decide when to cross anyway.</span></button>
-        <button class="scenario-card" data-scenario="9"><strong>9 · Is the signal for you?</strong><span>Several people wait to cross. The car yields and waves — but its signal may be meant for someone else, not you. Decide for yourself.</span></button>
-        <button class="scenario-card highlight" data-scenario="protocol"><strong>★ Repeated crossings</strong><span>Five crossings in a row with the same friendly car. Watch how your own attention changes — one run is not like the others.</span></button>
+        <button class="scenario-card" data-scenario="9"><strong>9 · Is the signal for you?</strong><span>Several people wait to cross. The car yields and waves, but its signal may be meant for someone else, not you. Decide for yourself.</span></button>
+        <button class="scenario-card highlight" data-scenario="protocol"><strong>★ Repeated crossings</strong><span>Five crossings in a row with the same friendly car. Watch how your own attention changes. One run is not like the others.</span></button>
       </div>
       <button id="menuClose">Close</button>
     </div>
@@ -198,10 +198,10 @@
     <div class="modal-box">
       <h3>💥 Accident</h3>
       <p id="accidentText">There was an accident.</p>
-      <button id="accidentOk">OK — reset scenario</button>
+      <button id="accidentOk">OK, reset scenario</button>
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=35"></script>
+  <script type="module" src="js/main.js?v=36"></script>
 </body>
 </html>
