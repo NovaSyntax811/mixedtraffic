@@ -21,7 +21,7 @@
   <div id="ui">
     <div id="topbar" class="panel">
       <button id="menuBtn">☰ Scenarios</button>
-      <span id="scenarioLabel" class="scenario-label">1 · Baseline (no eHMI)</span>
+      <span id="scenarioLabel" class="scenario-label">1 · A car with no signals</span>
       <button id="startBtn">▶ Start</button>
       <button id="resetBtn">↺ Reset</button>
       <span id="phaseLabel" class="phase">idle</span>
@@ -103,7 +103,7 @@
         <ul class="intro-list">
           <li>You are the <strong>pedestrian</strong>. Move with <strong>W / A / S / D</strong> or the arrow keys, drag the <strong>mouse</strong> to look around.</li>
           <li>Watch the approaching vehicle and <strong>decide for yourself when to cross</strong> — there is no prompt telling you to go.</li>
-          <li>Start with <strong>Scenario&nbsp;1 (Baseline)</strong>, then work through the list in order.</li>
+          <li>Start with <strong>Scenario&nbsp;1</strong>, then work through the list in order.</li>
           <li>After each run a <strong>short survey</strong> pops up: why you crossed (or didn't) and how safe you felt (1–7). Answer honestly — first instinct is fine.</li>
         </ul>
         <p class="intro-note">Take your time; you can replay any scenario.</p>
@@ -125,16 +125,16 @@
     <div class="modal-box menu-box">
       <h3>Scenarios</h3>
       <div class="scenario-list">
-        <button class="scenario-card" data-scenario="1"><strong>1 · Baseline</strong><span>Human-driven car, same yielding — no eHMI, no sound (control condition). Run this first.</span></button>
-        <button class="scenario-card" data-scenario="2"><strong>2 · Prosocial Yield</strong><span>No marked crossing — the AV chooses to let you cross. Full eHMI sequence: detect → yield → thank.</span></button>
-        <button class="scenario-card" data-scenario="3"><strong>3 · Edge Case</strong><span>A cyclist overtakes the yielding AV — unaddressed by the eHMI (Story 3).</span></button>
-        <button class="scenario-card" data-scenario="4"><strong>4 · Merge</strong><span>AV yields to a human driver merging from a side entrance (Story 1).</span></button>
-        <button class="scenario-card" data-scenario="5"><strong>5 · Mixed Traffic</strong><span>Bus, truck, cyclist and an emergency vehicle everyone yields to.</span></button>
-        <button class="scenario-card" data-scenario="6"><strong>6 · Aggressive Drivers</strong><span>Honking tailgater overtakes the yielding AV right across your path.</span></button>
-        <button class="scenario-card" data-scenario="7"><strong>7 · Sound Study — Mara</strong><span>Audio only: black screen, cross guided purely by the sound layer (Story 2).</span></button>
-        <button class="scenario-card" data-scenario="8"><strong>8 · Sound Study — Tom</strong><span>Distracted: music masks the AV cues (Story 2).</span></button>
-        <button class="scenario-card" data-scenario="9"><strong>9 · Ambiguous Signal</strong><span>Several pedestrians wait — the AV yields, but for whom? The signal is addressed to someone else; decide for yourself (signal scoping).</span></button>
-        <button class="scenario-card highlight" data-scenario="protocol"><strong>★ Trust Protocol</strong><span>5 runs back-to-back — one of them contains an unannounced edge case. Measures trust build-up and scanning behavior (Story 3).</span></button>
+        <button class="scenario-card" data-scenario="1"><strong>1 · A car with no signals</strong><span>An ordinary human-driven car, no signals at all. Your reference run — cross whenever you judge it safe.</span></button>
+        <button class="scenario-card" data-scenario="2"><strong>2 · A car that lets you cross</strong><span>A self-driving car shows its intent — light band, windshield display and sound — and chooses to let you cross, even though there is no marked crossing.</span></button>
+        <button class="scenario-card" data-scenario="3"><strong>3 · The car missed a cyclist</strong><span>The car detects you and yields, but a cyclist races up from behind that it never saw. Its signal only speaks for that one car — keep watching the road yourself.</span></button>
+        <button class="scenario-card" data-scenario="4"><strong>4 · Two cars sort it out</strong><span>The car yields to let another driver merge in from a side street. Watch how the two vehicles hand off before you decide.</span></button>
+        <button class="scenario-card" data-scenario="5"><strong>5 · A busy intersection</strong><span>A bus, a truck, a cyclist and an ambulance everyone pulls over for. Judge your crossing in the middle of it all.</span></button>
+        <button class="scenario-card" data-scenario="6"><strong>6 · Impatient drivers</strong><span>The car yields for you correctly, but an impatient driver behind it honks and overtakes right across your path. The car is safe — the others are not.</span></button>
+        <button class="scenario-card" data-scenario="7"><strong>7 · Crossing by ear</strong><span>You are blind and read the street by ear. The screen is black — cross guided only by the car's sound and where it comes from.</span></button>
+        <button class="scenario-card" data-scenario="8"><strong>8 · Crossing distracted</strong><span>You have one earbud in and music playing, which masks the car's cues. Decide when to cross anyway.</span></button>
+        <button class="scenario-card" data-scenario="9"><strong>9 · Is the signal for you?</strong><span>Several people wait to cross. The car yields and waves — but its signal may be meant for someone else, not you. Decide for yourself.</span></button>
+        <button class="scenario-card highlight" data-scenario="protocol"><strong>★ Repeated crossings</strong><span>Five crossings in a row with the same friendly car. Watch how your own attention changes — one run is not like the others.</span></button>
       </div>
       <button id="menuClose">Close</button>
     </div>
@@ -202,6 +202,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=31"></script>
+  <script type="module" src="js/main.js?v=32"></script>
 </body>
 </html>

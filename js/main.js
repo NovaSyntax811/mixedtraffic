@@ -27,15 +27,15 @@ const SCENARIO_LIGHTING = {
 // Quick "who's who" briefing shown at the start of each scenario, so the
 // named characters and their behaviours don't have to be remembered.
 const SCENARIO_RECAP = {
-  1: { title: 'Baseline — who\'s who', lines: [['🚗 Human-driven car', 'an ordinary driver, no signals at all'], ['🚶 You', 'there is no crossing here — decide for yourself if and when to cross']] },
-  2: { title: 'Prosocial yield — who\'s who', lines: [['🚐 Autonomous vehicle', 'communicates with light band, windshield display and sound'], ['🤝 No marked crossing', 'you have no right of way — if the AV stops, it is letting you cross by choice'], ['🚶 You', 'read its signals and cross when you feel safe']] },
-  3: { title: 'Edge case — who\'s who', lines: [['🚐 The AV', 'detects you and yields — light band, 👋, tone'], ['🚴 Cyclist', 'overtakes the AV from behind and will NOT stop for you — the AV never signals to it'], ['🚶 You', 'the signal is honest, but it only speaks for that one car']] },
-  4: { title: 'Merge — who\'s who', lines: [['🚐 The AV', 'yields to let another driver in'], ['🚗 Human driver', 'waits at the side entrance to merge'], ['🚶 You', 'observe the hand-off between the two cars']] },
-  5: { title: 'Mixed traffic — who\'s who', lines: [['🚌 Bus, 🚚 truck, 🚴 cyclist', 'ordinary traffic, each behaving differently'], ['🚑 Ambulance', 'siren on — everyone pulls over for it'], ['🚶 You', 'cross amid the chaos when you judge it safe']] },
-  6: { title: 'Aggressive drivers — who\'s who', lines: [['🚐 The cautious AV', 'yields for you, correctly'], ['🚗 Impatient driver', 'tailgates, honks, and overtakes the AV across your crossing'], ['🚶 You', 'the AV is safe — the others are not']] },
-  7: { title: 'Sound study — you are Mara', lines: [['🦯 Mara (you)', 'blind; you read the street by ear'], ['🔊 The screen is black', 'the car\'s sound is your only cue — listen for it and its direction']] },
-  8: { title: 'Sound study — you are Tom', lines: [['🎧 Tom (you)', 'distracted, one earbud in'], ['🎵 Music is playing', 'it competes with and masks the car\'s cues — decide anyway']] },
-  9: { title: 'Ambiguous signal — who\'s who', lines: [['🚐 The AV', 'yields and shows 👋'], ['🚶 🚶 Other pedestrians', 'also waiting — one of them may be who the signal is for'], ['🚶 You', 'decide whether the signal is meant for you']] },
+  1: { title: 'A car with no signals', lines: [['🚗 Human-driven car', 'an ordinary driver, no signals at all'], ['🚶 You', 'there is no crossing here — decide for yourself if and when to cross']] },
+  2: { title: 'A car that lets you cross', lines: [['🚐 Self-driving car', 'communicates with light band, windshield display and sound'], ['🤝 No marked crossing', 'you have no right of way — if the car stops, it is letting you cross by choice'], ['🚶 You', 'read its signals and cross when you feel safe']] },
+  3: { title: 'The car missed a cyclist', lines: [['🚐 The car', 'detects you and yields — light band, 👋, tone'], ['🚴 Cyclist', 'races up from behind and will NOT stop for you — the car never saw it'], ['🚶 You', 'the signal is honest, but it only speaks for that one car — keep watching']] },
+  4: { title: 'Two cars sort it out', lines: [['🚐 The car', 'yields to let another driver in'], ['🚗 Human driver', 'waits at the side street to merge'], ['🚶 You', 'watch the hand-off between the two cars']] },
+  5: { title: 'A busy intersection', lines: [['🚌 Bus, 🚚 truck, 🚴 cyclist', 'ordinary traffic, each behaving differently'], ['🚑 Ambulance', 'siren on — everyone pulls over for it'], ['🚶 You', 'cross amid the chaos when you judge it safe']] },
+  6: { title: 'Impatient drivers', lines: [['🚐 The cautious car', 'yields for you, correctly'], ['🚗 Impatient driver', 'tailgates, honks, and overtakes right across your path'], ['🚶 You', 'the car is safe — the others are not']] },
+  7: { title: 'Crossing by ear — you are blind', lines: [['🦯 You', 'cannot see; you read the street by ear'], ['🔊 The screen is black', 'the car\'s sound is your only cue — listen for it and where it comes from']] },
+  8: { title: 'Crossing distracted', lines: [['🎧 You', 'have one earbud in, looking at your phone'], ['🎵 Music is playing', 'it competes with and masks the car\'s cues — decide anyway']] },
+  9: { title: 'Is the signal for you?', lines: [['🚐 The car', 'yields and shows 👋'], ['🚶 🚶 Other people', 'also waiting — one of them may be who the signal is for'], ['🚶 You', 'decide whether the signal is meant for you']] },
 };
 // Show the centered "who's who" briefing for a scenario; the run starts when
 // the user confirms (recapStart). Falls back to running directly if there is
@@ -230,11 +230,11 @@ const $ = (id) => document.getElementById(id);
 
 // ---------- Scenario menu + study modes ----------
 const SCENARIO_LABELS = {
-  1: '1 · Baseline (no eHMI)', 2: '2 · Prosocial Yield', 3: '3 · Edge Case',
-  4: '4 · Merge', 5: '5 · Mixed Traffic', 6: '6 · Aggressive Drivers',
-  7: '7 · Sound Study — Mara', 8: '8 · Sound Study — Tom',
-  9: '9 · Ambiguous Signal',
-  protocol: '★ Trust Protocol',
+  1: '1 · A car with no signals', 2: '2 · A car that lets you cross', 3: '3 · The car missed a cyclist',
+  4: '4 · Two cars sort it out', 5: '5 · A busy intersection', 6: '6 · Impatient drivers',
+  7: '7 · Crossing by ear', 8: '8 · Crossing distracted',
+  9: '9 · Is the signal for you?',
+  protocol: '★ Repeated crossings',
 };
 let selectedScenario = 1;
 let protocol = null; // { step, total } while the trust protocol is running
