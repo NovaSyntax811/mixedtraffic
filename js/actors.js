@@ -623,35 +623,43 @@ export class MergingCar {
     this.group.position.set(-9, 0, 1.9);
     this.group.rotation.y = Math.PI / 2; // facing +X toward the main road
     this._mergeT = 0;
+    this._phase = 'east';
+    this._turnT = 0;
   }
 
   merge() { if (this.state === 'waiting') this.state = 'merging'; }
   hide() { this.state = 'hidden'; this.group.visible = false; }
 
+  // L-shaped path that stays on the asphalt: drive east along the side road
+  // (z=1.9) into the intersection, a quarter-turn left, then north in the AV's
+  // lane (x=-1.9). (The old single diagonal arc cut across the NW sidewalk.)
   update(dt, obstacles = []) {
     if (this.state !== 'merging') return;
-    // A real merging driver does not drive into a person standing or walking
-    // in the way — pause the maneuver while a pedestrian is in the path
-    // ahead, so a bystander never gets run over. Resumes once clear.
     const ry = this.group.rotation.y;
     const fwd = new THREE.Vector3(Math.sin(ry), 0, Math.cos(ry));
     if (blockingObstacle(this.group.position, fwd, obstacles, 5, 1.0)) return;
-    if (this._mergeT < 1) {
-      // Arc phase: advance + turn from +X heading to +Z heading
-      this._mergeT = Math.min(1, this._mergeT + dt / 2.4);
-      const t = this._mergeT;
-      const ease = t * t * (3 - 2 * t);
-      this.group.rotation.y = Math.PI / 2 - ease * (Math.PI / 2);
-      this.group.position.x = -9 + ease * 7.1;     // ends at x = -1.9 (AV lane)
-      this.group.position.z = 1.9 + ease * 6 + t * t * 10;
-    } else {
-      // Merged — drive straight off down the lane. (Previously the arc
-      // formula re-set z every frame, so the car stuck in place and the AV
-      // rear-ended it when it resumed.)
+
+    const pos = this.group.position;
+    const speed = 6;
+    const R = 2;                  // turn radius
+    const cx = -3.9, cz = 3.9;    // turn centre; arc runs (-3.9,1.9)->(-1.9,3.9)
+    if (this._phase === 'east') {
+      this.group.rotation.y = Math.PI / 2; // facing +X
+      pos.x += speed * dt;
+      pos.z = 1.9;
+      if (pos.x >= cx) { pos.x = cx; this._phase = 'turn'; this._turnT = 0; }
+    } else if (this._phase === 'turn') {
+      this._turnT = Math.min(1, this._turnT + (speed * dt) / ((Math.PI / 2) * R));
+      const ang = -Math.PI / 2 + this._turnT * (Math.PI / 2);
+      pos.x = cx + R * Math.cos(ang);
+      pos.z = cz + R * Math.sin(ang);
+      this.group.rotation.y = (Math.PI / 2) * (1 - this._turnT); // +X -> +Z
+      if (this._turnT >= 1) { this._phase = 'north'; this._mergeT = 1; pos.x = -1.9; }
+    } else { // north — drive off up the lane
       this.group.rotation.y = 0;
-      this.group.position.x = -1.9;
-      this.group.position.z += 9 * dt;
-      if (this.group.position.z > 70) this.hide();
+      pos.x = -1.9;
+      pos.z += speed * dt;
+      if (pos.z > 70) this.hide();
     }
   }
 }

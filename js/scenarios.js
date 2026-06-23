@@ -308,10 +308,12 @@ export class ScenarioRunner {
         if (d < 9) {
           this.av.targetSpeed = 0;
           this.av.setBandState('yielding');
-          this.av.setDisplay('yielding');
+          // Signal addressed to the OTHER CAR ("After you"), not the pedestrian.
+          // Open question: do you read it as meant for you and step out anyway?
+          this.av.setDisplay('yielding_car');
           this.sound.playGoAhead();
           this.logger.signalOnset();
-          this.setPhase('action', 'AV yields (cyan + 👋) — the car merges.');
+          this.setPhase('action', 'The AV is letting the other car in — is that signal for you too?');
         }
         break;
       case 'action':

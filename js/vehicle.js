@@ -161,7 +161,7 @@ export class AV {
     if (this.displayMode === 'off') { this.dispTexture.needsUpdate = true; return; }
 
     // State accent color (matches the light band language)
-    const ACCENT = { detecting: '#ffd24a', yielding: '#46e8f0', thanks: '#ffffff' };
+    const ACCENT = { detecting: '#ffd24a', yielding: '#46e8f0', yielding_car: '#46e8f0', thanks: '#ffffff' };
     const accent = ACCENT[this.displayMode] ?? '#ffffff';
 
     // Panel: soft dark gradient + glowing accent border
@@ -218,6 +218,14 @@ export class AV {
       ctx.font = '205px system-ui';
       ctx.fillText('👋', W / 2 + bob, 180);
       pill('Yielding — please cross', 366, 104, 56);
+    } else if (this.displayMode === 'yielding_car') {
+      // Addressed to the other car, not the pedestrian: "After you 🚗"
+      ctx.font = '150px system-ui';
+      ctx.fillText('🚗', W / 2, 150);
+      pill('After you', 300, 96, 54);
+      ctx.fillStyle = accent;
+      ctx.font = 'bold 40px system-ui, sans-serif';
+      ctx.fillText('letting the car in', W / 2, 432);
     } else if (this.displayMode === 'thanks') {
       ctx.font = '205px system-ui';
       ctx.fillText('☺️', W / 2, 180);

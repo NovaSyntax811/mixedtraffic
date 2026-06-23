@@ -1,11 +1,11 @@
 // Entry point: wires scene, actors, audio, scenarios, cameras, input, UI, logging.
 import * as THREE from 'three';
 import { createScene, LAYOUT } from './scene.js?v=28';
-import { AV } from './vehicle.js?v=18';
-import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=32';
+import { AV } from './vehicle.js?v=34';
+import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=34';
 import { EHMISound } from './audio.js?v=17';
 import { BehaviorLogger, showConfidenceCheck } from './logger.js?v=15';
-import { ScenarioRunner } from './scenarios.js?v=31';
+import { ScenarioRunner } from './scenarios.js?v=34';
 
 const { scene, camera, renderer, composer, setTimeOfDay } = createScene();
 
@@ -30,7 +30,7 @@ const SCENARIO_RECAP = {
   1: { title: 'A car with no signals', lines: [['🚗 Human-driven car', 'an ordinary driver, no signals at all'], ['🚶 You', 'there is no crossing here — decide for yourself if and when to cross']] },
   2: { title: 'A car that lets you cross', lines: [['🚐 Self-driving car', 'communicates with light band, windshield display and sound'], ['🤝 No marked crossing', 'you have no right of way — if the car stops, it is letting you cross by choice'], ['🚶 You', 'read its signals and cross when you feel safe']] },
   3: { title: 'The car missed a cyclist', lines: [['🚐 The car', 'detects you and yields — light band, 👋, tone'], ['🚴 Cyclist', 'races up from behind and will NOT stop for you — the car never saw it'], ['🚶 You', 'the signal is honest, but it only speaks for that one car — keep watching']] },
-  4: { title: 'Two cars sort it out', lines: [['🚐 The car', 'yields to let another driver in'], ['🚗 Human driver', 'waits at the side street to merge'], ['🚶 You', 'watch the hand-off between the two cars']] },
+  4: { title: 'A signal for the other car', lines: [['🚐 The car', 'yields and shows "After you 🚗" — addressed to the other driver'], ['🚗 Human driver', 'waits at the side street to merge in'], ['🚶 You', 'the signal is for the car — decide whether it is an invitation for you too']] },
   5: { title: 'A busy intersection', lines: [['🚌 Bus, 🚚 truck, 🚴 cyclist', 'ordinary traffic, each behaving differently'], ['🚑 Ambulance', 'siren on — everyone pulls over for it'], ['🚶 You', 'cross amid the chaos when you judge it safe']] },
   6: { title: 'Impatient drivers', lines: [['🚐 The cautious car', 'yields for you, correctly'], ['🚗 Impatient driver', 'tailgates, honks, and overtakes right across your path'], ['🚶 You', 'the car is safe — the others are not']] },
   7: { title: 'Crossing by ear — you are blind', lines: [['🦯 You', 'cannot see; you read the street by ear'], ['🔊 The screen is black', 'the car\'s sound is your only cue — listen for it and where it comes from']] },
@@ -231,7 +231,7 @@ const $ = (id) => document.getElementById(id);
 // ---------- Scenario menu + study modes ----------
 const SCENARIO_LABELS = {
   1: '1 · A car with no signals', 2: '2 · A car that lets you cross', 3: '3 · The car missed a cyclist',
-  4: '4 · Two cars sort it out', 5: '5 · A busy intersection', 6: '6 · Impatient drivers',
+  4: '4 · A signal for the other car', 5: '5 · A busy intersection', 6: '6 · Impatient drivers',
   7: '7 · Crossing by ear', 8: '8 · Crossing distracted',
   9: '9 · Is the signal for you?',
   protocol: '★ Repeated crossings',
