@@ -824,15 +824,26 @@ export class TrafficManager {
       let target = blocked || stopDist < brakeDist ? 0 : car.cruise;
       if (emergencyNear && !car.siren) target = 0; // yield to the emergency vehicle
 
-      // Aggressive overtake: stuck for a while -> swing out around the AV
+      // Aggressive overtake: crawl behind the AV, honk once or twice in
+      // impatience, then swing out around it.
       if (car.overtakeAV && avVisible && avPos) {
+        const stuckBehind = !car._overtaking && car.speed < 2 && pos.z < avPos.z;
         if (!car._overtaking) {
-          car._frustration = (car._frustration ?? 0) + (car.speed < 0.5 && target === 0 ? dt : 0);
+          car._frustration = (car._frustration ?? 0) + (stuckBehind ? dt : 0);
+          // One or two horn blasts while waiting, then the overtake
+          if (stuckBehind) {
+            car._honkT = (car._honkT ?? 0.6) - dt;
+            if (car._honkT <= 0) {
+              car._honkT = 1.0;
+              car._honkCount = (car._honkCount ?? 0) + 1;
+              if (car._honkCount <= 2) this.onHonk?.(car);
+            }
+          }
           if (car._frustration > (car.patience ?? 2.5)) { car._overtaking = true; this.onOvertake?.(car); }
         }
         if (car._overtaking) {
-          // Stays out until well past the zebra — it cuts right across the
-          // crossing while the pedestrian may be on it.
+          // Stays out until well past the crossing — it cuts right across the
+          // pedestrian's path.
           const relZ = pos.z - avPos.z;
           const targetX = relZ > -10 && relZ < 14 ? 0.2 : -1.9;
           pos.x += (targetX - pos.x) * Math.min(1, dt * 2);
@@ -840,14 +851,14 @@ export class TrafficManager {
         }
       }
 
-      // Honking while stuck
-      if (car.honkWhenBlocked && target === 0 && car.speed < 1) {
+      // Honking for non-overtaking aggressive cars (e.g. impatient oncoming car)
+      if (car.honkWhenBlocked && !car.overtakeAV && target === 0 && car.speed < 1) {
         car._honkT = (car._honkT ?? 0.6) - dt;
         if (car._honkT <= 0) {
           car._honkT = 2 + this._rand() * 1.5;
           this.onHonk?.(car);
         }
-      } else {
+      } else if (!car.overtakeAV) {
         car._honkT = 0.6;
       }
 

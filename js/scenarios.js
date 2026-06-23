@@ -97,7 +97,7 @@ export class ScenarioRunner {
       this._timeline = [
         {
           t: 0.3, fn: () => {
-            this.traffic.spawnScripted({ kind: 'car', route: 'northAV', offset: 76, cruise: 13, color: 0x1c1c20, honkWhenBlocked: true, overtakeAV: true, ignoreZebra: true, patience: 1.2 });
+            this.traffic.spawnScripted({ kind: 'car', route: 'northAV', offset: 76, cruise: 13, color: 0x1c1c20, honkWhenBlocked: true, overtakeAV: true, ignoreZebra: true, patience: 2.4 });
             this.logger.event('tailgater_spawned');
             this.onMessage?.('An impatient driver is tailgating the AV…');
           },
