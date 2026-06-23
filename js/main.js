@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { createScene, LAYOUT } from './scene.js?v=28';
 import { AV } from './vehicle.js?v=18';
-import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=31';
+import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=32';
 import { EHMISound } from './audio.js?v=17';
 import { BehaviorLogger, showConfidenceCheck } from './logger.js?v=15';
 import { ScenarioRunner } from './scenarios.js?v=31';

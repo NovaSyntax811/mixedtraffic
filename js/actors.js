@@ -93,9 +93,10 @@ export class Pedestrian {
     if (this.moving) {
       this.group.position.x += dir.x * this.speed * dt;
       this.group.position.z += dir.y * this.speed * dt;
-      // Free roam — only keep the player on the ground plane
-      this.group.position.x = THREE.MathUtils.clamp(this.group.position.x, -100, 100);
-      this.group.position.z = THREE.MathUtils.clamp(this.group.position.z, -100, 100);
+      // Roam around the crossing/intersection, but stay near it so the car's
+      // yield stays connected to you (no wandering far down the street).
+      this.group.position.x = THREE.MathUtils.clamp(this.group.position.x, -11, 11);
+      this.group.position.z = THREE.MathUtils.clamp(this.group.position.z, -12, 18);
       this.heading = Math.atan2(dir.x, dir.y);
       // smooth turn
       const cur = this.group.rotation.y;
