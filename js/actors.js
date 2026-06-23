@@ -822,16 +822,33 @@ export class TrafficManager {
 
       // Car-following / never drive into anything. Overtaking aggressors
       // ignore the AV and the pedestrian (real overlaps become accidents).
+      // The ambulance ignores other cars (they pull over for it) but still
+      // brakes for the pedestrian / AV.
       let obsList = obstacles;
       if (car._overtaking) obsList = obstacles.filter((o) => o.name !== 'AV' && o.name !== 'pedestrian');
-      const others = this.cars.filter((c) => c !== car)
+      const others = car.siren ? [] : this.cars.filter((c) => c !== car)
         .map((c) => ({ pos: c.mesh.position, r: c.r ?? 1.6, name: 'car' }));
       const blocked = blockingObstacle(pos, fwd, [...obsList, ...others], 5 + car.speed, 1.0);
 
       // Brake early enough to stop within stopDist (decel ~3.5 m/s²)
       const brakeDist = (car.speed * car.speed) / 7 + 1.2;
       let target = blocked || stopDist < brakeDist ? 0 : car.cruise;
-      if (emergencyNear && !car.siren) target = 0; // yield to the emergency vehicle
+
+      // Emergency: non-siren cars pull over onto the sidewalk to clear the way.
+      if (emergencyNear && !car.siren) {
+        const alongZ = Math.abs(fwd.z) >= Math.abs(fwd.x); // travelling on the main road?
+        const inBox = Math.abs(pos.x) < 7 && Math.abs(pos.z) < 7;
+        if (alongZ) {
+          const cx = (pos.x >= 0 ? 1 : -1) * 5.5;        // curb of the main road
+          pos.x += (cx - pos.x) * Math.min(1, dt * 1.8);
+        } else {
+          const cz = (pos.z >= 0 ? 1 : -1) * 5.5;        // curb of the side road
+          pos.z += (cz - pos.z) * Math.min(1, dt * 1.8);
+        }
+        // Keep rolling out of the intersection rather than freezing in it; once
+        // clear, stop at the curb.
+        target = inBox && !blocked ? Math.min(car.cruise, 4) : 0;
+      }
 
       // Aggressive overtake: crawl behind the AV, honk once or twice in
       // impatience, then swing out around it.

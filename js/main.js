@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { createScene, LAYOUT } from './scene.js?v=28';
 import { AV } from './vehicle.js?v=34';
-import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=34';
+import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=35';
 import { EHMISound } from './audio.js?v=17';
 import { BehaviorLogger, showConfidenceCheck } from './logger.js?v=15';
 import { ScenarioRunner } from './scenarios.js?v=34';
@@ -432,7 +432,7 @@ function checkVehicleCollisions() {
   // point of the scenario. They must not register as a car–car accident
   // (they would otherwise clip oncoming traffic by ~0.3m). They can still hit
   // the pedestrian (checkPedestrianCollisions handles that danger).
-  for (const c of traffic.cars) bodies.push({ name: c.kind ?? 'car', g: c.mesh, hl: c.hl ?? 2.05, speed: Math.abs(c.speed), aggressive: !!(c.overtakeAV || c.honkWhenBlocked), stop: () => { c.speed = 0; c.cruise = 0; } });
+  for (const c of traffic.cars) bodies.push({ name: c.kind ?? 'car', g: c.mesh, hl: c.hl ?? 2.05, speed: Math.abs(c.speed), aggressive: !!(c.overtakeAV || c.honkWhenBlocked || c.siren), stop: () => { c.speed = 0; c.cruise = 0; } });
 
   // Contact needs real body overlap: queued traffic stands well apart
   // (circle gap ≥1.7), a T-bone hit reaches gap ~1.25 — threshold sits between.
