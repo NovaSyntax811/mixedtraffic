@@ -84,7 +84,6 @@ export const LAYOUT = {
   roadWidth: 8,
   sidewalk: 3,
   zebraZ: 6,
-  stopLineZ: 3.4, // where the vehicle nose comes to rest, before the crossing
 };
 
 function buildEnvironment(scene) {
@@ -206,15 +205,6 @@ function buildEnvironment(scene) {
     scene.add(light);
     lampLights.push(light);
   }
-
-  // Stop line on the AV's lane (where its nose comes to rest, before the crossing)
-  const stopLine = new THREE.Mesh(
-    new THREE.PlaneGeometry(roadWidth / 2 - 0.2, 0.4),
-    new THREE.MeshStandardMaterial({ color: 0x9a9580, roughness: 0.85 })
-  );
-  stopLine.rotation.x = -Math.PI / 2;
-  stopLine.position.set(-roadWidth / 4 + 0.1, 0.013, LAYOUT.stopLineZ); // northbound (AV) lane
-  scene.add(stopLine);
 
   // Right-of-way signage: the side road yields, the main road has priority.
   // Kept minimal: a give-way sign on each side-road approach plus one priority

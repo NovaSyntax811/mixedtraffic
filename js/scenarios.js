@@ -1,10 +1,10 @@
 // Scenario state machines, following the interaction arc:
 // Detection -> Decision -> Action (signal) -> Acknowledgment -> Outcome
-import { LAYOUT } from './scene.js?v=38';
+import { LAYOUT } from './scene.js?v=39';
 
 const ZEBRA = LAYOUT.zebraZ;
 const PREROLL = 9;       // seconds the vehicle waits at the start (free-walk lead-in)
-const STOP_BEFORE = 2.6; // the vehicle nose stops this far before the crossing line
+const STOP_BEFORE = 3.2; // the vehicle nose stops this far before the crossing (clearly before it)
 
 export class ScenarioRunner {
   constructor({ av, humanCar, pedestrian, cyclist, mergingCar, traffic, npcs, sound, logger, onPhase, onMessage, onComplete }) {
