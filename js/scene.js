@@ -84,6 +84,7 @@ export const LAYOUT = {
   roadWidth: 8,
   sidewalk: 3,
   zebraZ: 6,
+  stopLineZ: 3.4, // where the vehicle nose comes to rest, before the crossing
 };
 
 function buildEnvironment(scene) {
@@ -206,6 +207,22 @@ function buildEnvironment(scene) {
     lampLights.push(light);
   }
 
+  // Stop line on the AV's lane (where its nose comes to rest, before the crossing)
+  const stopLine = new THREE.Mesh(
+    new THREE.PlaneGeometry(roadWidth / 2 - 0.2, 0.4),
+    new THREE.MeshStandardMaterial({ color: 0x9a9580, roughness: 0.85 })
+  );
+  stopLine.rotation.x = -Math.PI / 2;
+  stopLine.position.set(-roadWidth / 4 + 0.1, 0.013, LAYOUT.stopLineZ); // northbound (AV) lane
+  scene.add(stopLine);
+
+  // Right-of-way signage: the side road yields, the main road has priority.
+  // Kept minimal: a give-way sign on each side-road approach plus one priority
+  // sign on the main road, so the merge interaction reads clearly.
+  placeSign(scene, 'yield', -4.7, -4.7, -Math.PI / 2);  // west side road, faces the merging car
+  placeSign(scene, 'yield', 4.7, 4.7, Math.PI / 2);     // east side road, faces westbound traffic
+  placeSign(scene, 'priority', 4.7, -4.7, Math.PI);     // main road, faces the AV's approach from the south
+
   // Toggle artificial lights: factor 0 = off (daylight), 1 = full (night)
   function setNightLights(factor) {
     for (const m of litWindows) m.emissiveIntensity = 1.1 * factor;
@@ -239,4 +256,58 @@ function addWindows(scene, building, w, h, d, rand, litWindows) {
       scene.add(m);
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Traffic signs (3D). 'yield' = give way (downward red/white triangle),
+// 'priority' = priority road (yellow/white diamond). Built facing +Z; aim with
+// the group's Y rotation when placing.
+// ---------------------------------------------------------------------------
+function yieldTriangleGeo(size) {
+  const h = size * Math.sqrt(3) / 2;
+  const s = new THREE.Shape();
+  s.moveTo(-size / 2, h / 2);   // top-left
+  s.lineTo(size / 2, h / 2);    // top-right
+  s.lineTo(0, -h / 2);          // bottom point (give-way points down)
+  s.closePath();
+  return new THREE.ShapeGeometry(s);
+}
+
+function buildSign(kind) {
+  const g = new THREE.Group();
+  const poleMat = new THREE.MeshStandardMaterial({ color: 0x9aa0aa, roughness: 0.55, metalness: 0.4 });
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.5, 8), poleMat);
+  pole.position.y = 1.25;
+  pole.castShadow = true;
+  g.add(pole);
+  const faceY = 2.35;
+  const dbl = THREE.DoubleSide;
+
+  if (kind === 'yield') {
+    const red = new THREE.Mesh(yieldTriangleGeo(0.9), new THREE.MeshStandardMaterial({ color: 0xc62828, roughness: 0.5, side: dbl }));
+    red.position.set(0, faceY, 0);
+    red.castShadow = true;
+    g.add(red);
+    const white = new THREE.Mesh(yieldTriangleGeo(0.58), new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.5, side: dbl }));
+    white.position.set(0, faceY, 0.02);
+    g.add(white);
+  } else if (kind === 'priority') {
+    const white = new THREE.Mesh(new THREE.PlaneGeometry(0.78, 0.78), new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.5, side: dbl }));
+    white.position.set(0, faceY, 0);
+    white.rotation.z = Math.PI / 4;
+    white.castShadow = true;
+    g.add(white);
+    const yellow = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 0.58), new THREE.MeshStandardMaterial({ color: 0xf2c40a, roughness: 0.5, side: dbl }));
+    yellow.position.set(0, faceY, 0.02);
+    yellow.rotation.z = Math.PI / 4;
+    g.add(yellow);
+  }
+  return g;
+}
+
+function placeSign(scene, kind, x, z, yaw) {
+  const s = buildSign(kind);
+  s.position.set(x, 0, z);
+  s.rotation.y = yaw;
+  scene.add(s);
 }

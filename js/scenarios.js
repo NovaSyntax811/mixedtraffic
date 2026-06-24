@@ -1,9 +1,10 @@
 // Scenario state machines, following the interaction arc:
 // Detection -> Decision -> Action (signal) -> Acknowledgment -> Outcome
-import { LAYOUT } from './scene.js?v=28';
+import { LAYOUT } from './scene.js?v=38';
 
 const ZEBRA = LAYOUT.zebraZ;
-const PREROLL = 9; // seconds the vehicle waits at the start (free-walk lead-in)
+const PREROLL = 9;       // seconds the vehicle waits at the start (free-walk lead-in)
+const STOP_BEFORE = 2.6; // the vehicle nose stops this far before the crossing line
 
 export class ScenarioRunner {
   constructor({ av, humanCar, pedestrian, cyclist, mergingCar, traffic, npcs, sound, logger, onPhase, onMessage, onComplete }) {
@@ -130,6 +131,15 @@ export class ScenarioRunner {
   // distance from AV front to side-street mouth (z ~ -roadWidth/2)
   get distToSideStreet() { return -LAYOUT.roadWidth / 2 - this.av.frontZ; }
 
+  // Smoothly brake a vehicle so its nose comes to rest at frontTargetZ (a stop
+  // line), regardless of approach speed. Returns the remaining gap so callers
+  // can detect when it has settled. Prevents overshooting onto the crossing.
+  _brakeToStopLine(vehicle, frontTargetZ, decel = 2.5) {
+    const gap = frontTargetZ - vehicle.frontZ;
+    vehicle.targetSpeed = Math.max(0, Math.min(this.approachSpeed, Math.sqrt(2 * decel * Math.max(0, gap))));
+    return gap;
+  }
+
   update(dt) {
     if (!this.running) return;
 
@@ -193,14 +203,9 @@ export class ScenarioRunner {
           this.setPhase('detection', 'AV detected pedestrians (yellow band + eye icon).');
         }
         break;
-      case 'detection':
-        if (d < 20) {
-          this.av.targetSpeed = this.approachSpeed * 0.35;
-          this.setPhase('decision', 'AV decelerating for the crossing…');
-        }
-        break;
-      case 'decision':
-        if (d < 8) {
+      case 'detection': {
+        const gap = this._brakeToStopLine(this.av, ZEBRA - STOP_BEFORE);
+        if (this.av.speed < 0.3 && gap < 1.0) {
           this.av.targetSpeed = 0;
           this.av.setBandState('yielding');
           this.av.setDisplay('yielding');
@@ -210,6 +215,7 @@ export class ScenarioRunner {
           this.setPhase('action', 'AV yields, but for whom? Decide for yourself.');
         }
         break;
+      }
       case 'action': {
         if (this._npcDelay !== undefined) {
           this._npcDelay -= dt;
@@ -252,17 +258,16 @@ export class ScenarioRunner {
     const d = ZEBRA - this.humanCar.frontZ;
     switch (this.phase) {
       case 'approach':
-        if (d < 20) {
-          this.humanCar.targetSpeed = this.approachSpeed * 0.35;
-          this.setPhase('decision', 'The car is slowing down…');
-        }
+        if (d < 42) this.setPhase('decision', 'The car is slowing down…');
         break;
-      case 'decision':
-        if (d < 8) {
+      case 'decision': {
+        const gap = this._brakeToStopLine(this.humanCar, ZEBRA - STOP_BEFORE);
+        if (this.humanCar.speed < 0.3 && gap < 1.0) {
           this.humanCar.targetSpeed = 0;
           this.setPhase('action', 'The car has stopped, with no signal. Decide yourself.');
         }
         break;
+      }
       case 'action': {
         if (this.humanCar.speed < 0.2) this.logger.signalOnset(); // implicit cue: full stop
         const px = this.pedestrian.group.position.x;
@@ -298,14 +303,11 @@ export class ScenarioRunner {
           this.setPhase('detection', 'AV detected the waiting car (yellow band).');
         }
         break;
-      case 'detection':
-        if (d < 18) {
-          this.av.targetSpeed = this.approachSpeed * 0.4; // begin decelerating -> friction cue
-          this.setPhase('decision', 'AV slowing down…');
-        }
-        break;
-      case 'decision':
-        if (d < 9) {
+      case 'detection': {
+        // Brake to a stop just before the junction (nose at z = -6), so the AV
+        // waits clear of the intersection rather than rolling into it.
+        const gap = this._brakeToStopLine(this.av, -6);
+        if (this.av.speed < 0.3 && gap < 1.0) {
           this.av.targetSpeed = 0;
           this.av.setBandState('yielding');
           // Signal addressed to the OTHER CAR ("After you"), not the pedestrian.
@@ -316,6 +318,7 @@ export class ScenarioRunner {
           this.setPhase('action', 'The AV is letting the other car in. Is that signal for you too?');
         }
         break;
+      }
       case 'action':
         if (this.av.speed < 0.2 && this._timer > 1.0) {
           this.mergingCar.merge();
@@ -359,21 +362,10 @@ export class ScenarioRunner {
           this.setPhase('detection', 'AV detected you (yellow band + eye icon).');
         }
         break;
-      case 'detection':
-        if (d < 20) {
-          this.av.targetSpeed = this.approachSpeed * 0.35;
-          this.setPhase('decision', 'AV decelerating for the crossing…');
-          // Scenario 3 edge case: a cyclist appears behind the AV and
-          // overtakes it — the AV does NOT address it, and the cyclist does
-          // not brake for the crossing pedestrian.
-          if (this.scenario === 3) {
-            this.cyclist.startOvertake(this.av);
-            this.logger.event('cyclist_overtaking_unaddressed');
-          }
-        }
-        break;
-      case 'decision':
-        if (d < 8) {
+      case 'detection': {
+        // Brake smoothly so the nose settles at the stop line, before the crossing.
+        const gap = this._brakeToStopLine(this.av, ZEBRA - STOP_BEFORE);
+        if (this.av.speed < 0.3 && gap < 1.0) {
           this.av.targetSpeed = 0;
           this.av.setBandState('yielding');
           this.av.setDisplay('yielding');
@@ -381,12 +373,19 @@ export class ScenarioRunner {
           else this.sound.playGoAhead();
           this.logger.signalOnset();
           this.setPhase('action', 'AV yields (cyan + 👋 + tone). Cross when ready.');
-          if (this.scenario === 3 && !this.quietEdge) {
-            // In the trust protocol the edge case stays unannounced
-            this.onMessage?.('⚠ A cyclist is overtaking the AV from behind, and it will not stop for you.');
+          // Scenario 3 edge case: a cyclist appears behind the now-stopped AV
+          // and overtakes it. The AV does NOT address it, and the cyclist does
+          // not brake for the crossing pedestrian.
+          if (this.scenario === 3) {
+            this.cyclist.startOvertake(this.av);
+            this.logger.event('cyclist_overtaking_unaddressed');
+            if (!this.quietEdge) {
+              this.onMessage?.('⚠ A cyclist is overtaking the AV from behind, and it will not stop for you.');
+            }
           }
         }
         break;
+      }
       case 'action': {
         // Wait for pedestrian to fully cross (reach far sidewalk) or time out
         // (audio-only runs get a longer window — orientation by ear takes time)
