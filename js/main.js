@@ -1,11 +1,11 @@
 // Entry point: wires scene, actors, audio, scenarios, cameras, input, UI, logging.
 import * as THREE from 'three';
-import { createScene, LAYOUT } from './scene.js?v=39';
+import { createScene, LAYOUT } from './scene.js?v=47';
 import { AV } from './vehicle.js?v=36';
-import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=35';
+import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=45';
 import { EHMISound } from './audio.js?v=17';
 import { BehaviorLogger, showConfidenceCheck } from './logger.js?v=15';
-import { ScenarioRunner } from './scenarios.js?v=39';
+import { ScenarioRunner } from './scenarios.js?v=52';
 
 const { scene, camera, renderer, composer, setTimeOfDay } = createScene();
 
@@ -19,8 +19,6 @@ const SCENARIO_LIGHTING = {
   4: 'day',        // Merge
   5: 'dusk',       // Mixed traffic — emergency lights pop
   6: 'afternoon',  // Aggressive drivers
-  7: 'night',      // Sound study (Mara) — audio only
-  8: 'day',        // Sound study (Tom)
   9: 'afternoon',  // Ambiguous signal
 };
 
@@ -33,9 +31,8 @@ const SCENARIO_RECAP = {
   4: { title: 'A signal for the other car', lines: [['🚐 The car', 'yields and shows "After you 🚗", addressed to the other driver'], ['🚗 Other driver', 'waits at the side street to merge in'], ['🚶 You', 'the signal is for the car, so decide whether it is an invitation for you too']] },
   5: { title: 'A busy intersection', lines: [['🚌 Bus, 🚚 truck, 🚴 cyclist', 'ordinary traffic, each behaving differently'], ['🚑 Ambulance', 'siren on, so everyone pulls over for it'], ['🚶 You', 'cross amid the chaos when you judge it safe']] },
   6: { title: 'Impatient drivers', lines: [['🚐 The cautious car', 'yields for you, correctly'], ['🚗 Impatient driver', 'tailgates, honks, and overtakes right across your path'], ['🚶 You', 'the car is safe, the others are not']] },
-  7: { title: 'Crossing by ear, you are blind', lines: [['🦯 You', 'cannot see, so you read the street by ear'], ['🔊 The screen is black', 'the car\'s sound is your only cue, so listen for it and where it comes from']] },
-  8: { title: 'Crossing distracted', lines: [['🎧 You', 'have one earbud in, looking at your phone'], ['🎵 Music is playing', 'it competes with and masks the car\'s cues, so decide anyway']] },
   9: { title: 'Is the signal for you?', lines: [['🚐 The car', 'yields and shows 👋'], ['🚶 🚶 Other people', 'also waiting, and one of them may be who the signal is for'], ['🚶 You', 'decide whether the signal is meant for you']] },
+  walk: { title: 'A walk through town', lines: [['🚶 You', 'walk up the street with W and turn with the mouse. You stroll, you do not stay in one place'], ['🚐 An automated car', 'turns up at a few points along the way and reacts to where you are'], ['🤝 Crossing is your call', 'there are no marked crossings, so each time decide whether to cross or just carry on'], ['➡ Keep going', 'after each moment, walk on up the street and the next one comes to you']] },
 };
 // Show the centered "who's who" briefing for a scenario; the run starts when
 // the user confirms (recapStart). Falls back to running directly if there is
@@ -74,17 +71,8 @@ const runner = new ScenarioRunner({
     setBlackout(false);             // restore vision for the dialog (audio-only study)
     sound.stopDistractor();
     sound.audioOnlyBoost = false;
-    const askSound = run?.scenario === 7 || run?.scenario === 8;
-    const answers = await showConfidenceCheck(!!run?.crossed, askSound);
+    const answers = await showConfidenceCheck(!!run?.crossed);
     logger.completeRun(run, answers);
-    // Trust protocol: chain straight into the next run
-    if (protocol) {
-      protocol.step += 1;
-      if (protocol.step < protocol.total) { nextProtocolRun(); return; }
-      protocol = null;
-      hudMsg.textContent = 'Repeated crossings complete. Download the log to see scanning behaviour across runs.';
-      return;
-    }
     hudMsg.textContent = 'Logged. Pick a scenario and press Start for another run.';
   },
 });
@@ -98,7 +86,8 @@ window.addEventListener('keydown', (e) => {
   keys.add(e.code);
   if (e.code === 'KeyC') cycleCamera();
   if (e.code === 'KeyR') resetFpvLook();
-  if (e.code === 'Escape') setRecordMode(false);
+  if (e.code === 'KeyO') toggleAdmin();
+  if (e.code === 'Escape') { setRecordMode(false); toggleAdmin(false); }
 });
 window.addEventListener('keyup', (e) => keys.delete(e.code));
 
@@ -232,9 +221,8 @@ const $ = (id) => document.getElementById(id);
 const SCENARIO_LABELS = {
   1: '1 · A car with no signals', 2: '2 · A car that lets you cross', 3: '3 · The car missed a cyclist',
   4: '4 · A signal for the other car', 5: '5 · A busy intersection', 6: '6 · Impatient drivers',
-  7: '7 · Crossing by ear', 8: '8 · Crossing distracted',
   9: '9 · Is the signal for you?',
-  protocol: '★ Repeated crossings',
+  walk: '★ A walk through town',
 };
 let selectedScenario = 1;
 let protocol = null; // { step, total } while the trust protocol is running
@@ -248,17 +236,21 @@ function beginRun(scenario, { quietEdge = false, protocolStep = null } = {}) {
   runner.approachSpeed = parseFloat($('avSpeed').value);
 
   setTimeOfDay(SCENARIO_LIGHTING[scenario] || 'afternoon'); // per-scenario lighting
-  setBlackout(scenario === 7);                            // Mara: audio only
-  sound.audioOnlyBoost = scenario === 7;                  // louder, longer-range cues
-  if (scenario === 8) sound.startDistractor();            // Tom: masking music
-  else sound.stopDistractor();
+
+  // The continuous walk keeps traffic light (only each station's scripted
+  // actors), starts the player in first person facing up the street, and clears
+  // any leftover ambiguous-scenario NPCs. Other scenarios honour the toggle.
+  traffic.setEnabled(scenario === 'walk' ? false : $('toggleTraffic').checked);
+  if (scenario === 'walk') {
+    setCamera('pedestrian');
+    fpvYaw = 0;        // face north (+Z), so W walks up the street
+    fpvPitch = 0;
+  }
 
   $('recap').classList.add('hidden'); // briefing (if any) already confirmed
 
   logger.nextMeta = {
     soundVolume: sound.volume,
-    ...(scenario === 7 ? { mode: 'audio_only' } : {}),
-    ...(scenario === 8 ? { mode: 'distracted' } : {}),
     ...(scenario === 9 ? { mode: 'ambiguous_signal' } : {}),
     ...(protocolStep !== null ? { protocolStep } : {}),
   };
@@ -267,14 +259,8 @@ function beginRun(scenario, { quietEdge = false, protocolStep = null } = {}) {
 }
 
 function startSelected() {
-  if (selectedScenario === 'protocol') {
-    // No per-run briefing — it would spoil the unannounced edge case.
-    protocol = { step: 0, total: 5 };
-    nextProtocolRun();
-  } else {
-    protocol = null;
-    showBriefing(selectedScenario); // centered "who's who" → Start scenario
-  }
+  protocol = null;
+  showBriefing(selectedScenario); // centered "who's who" → Start scenario (walk included)
 }
 
 // Trust protocol: identical-looking runs; the last one silently swaps in the
@@ -317,23 +303,31 @@ $('introStart').addEventListener('click', () => {
 
 $('menuBtn').addEventListener('click', () => $('scenarioMenu').classList.remove('hidden'));
 $('menuClose').addEventListener('click', () => $('scenarioMenu').classList.add('hidden'));
+
+// ---------- Admin menu (researcher controls + recording) ----------
+function toggleAdmin(force) {
+  const m = $('adminMenu');
+  const show = force ?? m.classList.contains('hidden');
+  m.classList.toggle('hidden', !show);
+}
+$('adminBtn').addEventListener('click', () => toggleAdmin());
+$('adminClose').addEventListener('click', () => toggleAdmin(false));
 document.querySelectorAll('.scenario-card').forEach((card) => {
   card.addEventListener('click', () => {
     const v = card.dataset.scenario;
-    selectedScenario = v === 'protocol' ? 'protocol' : parseInt(v, 10);
+    selectedScenario = /^\d+$/.test(v) ? parseInt(v, 10) : v;
     $('scenarioLabel').textContent = SCENARIO_LABELS[selectedScenario];
     $('scenarioMenu').classList.add('hidden');
     startSelected();
   });
 });
 
-$('startBtn').addEventListener('click', startSelected);
-$('resetBtn').addEventListener('click', () => {
-  protocol = null;
+// Restart re-runs the current scenario from the beginning (no briefing).
+// Picking a scenario from the menu is the only way to start a new one.
+$('restartBtn').addEventListener('click', () => {
   setBlackout(false);
   sound.stopDistractor();
-  sound.audioOnlyBoost = false;
-  runner.reset();
+  beginRun(selectedScenario);
 });
 
 $('avSpeed').addEventListener('input', (e) => {
@@ -349,7 +343,7 @@ $('downloadLog').addEventListener('click', () => logger.download());
 
 // Record mode: hide all UI for clean screen recordings (Esc exits)
 function setRecordMode(on) { document.body.classList.toggle('recording', on); }
-$('recordBtn').addEventListener('click', () => setRecordMode(true));
+$('recordBtn').addEventListener('click', () => { toggleAdmin(false); setRecordMode(true); });
 
 // ---------- Accident system ----------
 // Any actual collision (vehicle/cyclist/pedestrian) triggers a crash: sound,
@@ -500,8 +494,6 @@ const clock = new THREE.Clock();
 const ROAD_HALF = LAYOUT.roadWidth / 2;
 let sirenWasActive = false;
 let lastLookingAtVehicle = false;
-let stepDistance = 0;
-let wasInRoadSound = false;
 
 function animate() {
   requestAnimationFrame(animate);
@@ -572,17 +564,6 @@ function animate() {
   }
   lastLookingAtVehicle = lookingAtVehicle;
   logger.tick(inRoad, pedestrian.moving, avDist, lookingAtVehicle, dt * 1000);
-
-  // Audio-only study: footsteps while walking + a curb tick at the road edge,
-  // so the participant can track their own position without vision.
-  if (runner.scenario === 7 && runner.running) {
-    if (pedestrian.moving) {
-      stepDistance += pedestrian.speed * dt;
-      if (stepDistance > 0.6) { stepDistance = 0; sound.playStep(); }
-    }
-    if (inRoad !== wasInRoadSound) sound.playCurb();
-  }
-  wasInRoadSound = inRoad;
 
   // Sound update with camera-relative panning
   const camRight = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);

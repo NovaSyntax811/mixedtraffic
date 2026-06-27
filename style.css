@@ -16,14 +16,21 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0e16; fon
 }
 
 #topbar { position: absolute; top: 12px; left: 12px; display: flex; gap: 10px; align-items: center; }
-#camerabar { position: absolute; top: 12px; right: 12px; display: flex; gap: 5px; padding: 6px 8px; }
-#camerabar button { padding: 4px 10px; }
-#controls { position: absolute; bottom: 12px; right: 12px; max-width: 260px; }
-#controls summary { cursor: pointer; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #9fb4d8; user-select: none; }
-#controls .controls-body { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; width: 236px; }
-#controls label { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
-#controls input[type="range"] { flex: 1; }
+#adminBtn { position: absolute; bottom: 12px; right: 12px; padding: 6px 10px; font-size: 15px; line-height: 1; opacity: 0.7; }
+#adminBtn:hover { opacity: 1; }
 #hud { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); font-size: 15px; }
+
+/* Admin menu */
+.admin-box { width: 320px; text-align: left; }
+.admin-box h3 { text-align: center; margin-top: 0; }
+.admin-group { margin-bottom: 14px; }
+.admin-label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #9fb4d8; margin-bottom: 6px; }
+.admin-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.admin-row button { flex: 1; min-width: 92px; }
+.controls-body { display: flex; flex-direction: column; gap: 8px; }
+.controls-body label { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+.controls-body input[type="range"] { flex: 1; }
+#adminClose { width: 100%; }
 
 button, select {
   background: #1b2438; color: #e8ecf5; border: 1px solid rgba(120,160,220,0.35);

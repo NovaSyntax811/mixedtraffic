@@ -4,6 +4,12 @@ Browser-based Three.js test environment for a multimodal eHMI concept
 (light band + windshield display + synthetic sound). Built for focus-group
 video vignettes and as a first prototype of browser-based behavioral measurement.
 
+> **See [DOCUMENTATION.md](DOCUMENTATION.md) for the current, authoritative guide.**
+> Some sections below predate recent changes: scenarios 7 and 8 and the repeated
+> crossings protocol were removed, the continuous walk replaced them, the
+> controls and cameras moved into an admin menu (⚙ / O key), and the old Start
+> button is now a single Restart.
+
 ## Run
 
 No build tools needed — just serve the folder (ES modules require http://):
