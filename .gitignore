@@ -1,0 +1,5 @@
+# Local Claude Code preview config (contains a machine-specific absolute path)
+.claude/
+
+# OS / editor cruft
+.DS_Store

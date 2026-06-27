@@ -1,6 +1,6 @@
 // User-controlled pedestrian + secondary actors (cyclist, merging car, ambient traffic).
 import * as THREE from 'three';
-import { LAYOUT } from './scene.js?v=28';
+import { LAYOUT } from './scene.js?v=39';
 
 // Shared obstacle check: is anything in `obstacles` blocking the path ahead?
 // Returns the blocking obstacle, or null. `forward` must be normalized (XZ plane).
@@ -96,7 +96,9 @@ export class Pedestrian {
       // Roam around the crossing/intersection, but stay near it so the car's
       // yield stays connected to you (no wandering far down the street).
       this.group.position.x = THREE.MathUtils.clamp(this.group.position.x, -11, 11);
-      this.group.position.z = THREE.MathUtils.clamp(this.group.position.z, -12, 18);
+      // z range reaches far north so the continuous-walk corridor is walkable;
+      // the single-intersection scenarios keep the player near the crossing anyway.
+      this.group.position.z = THREE.MathUtils.clamp(this.group.position.z, -14, 124);
       this.heading = Math.atan2(dir.x, dir.y);
       // smooth turn
       const cur = this.group.rotation.y;
@@ -834,20 +836,32 @@ export class TrafficManager {
       const brakeDist = (car.speed * car.speed) / 7 + 1.2;
       let target = blocked || stopDist < brakeDist ? 0 : car.cruise;
 
-      // Emergency: non-siren cars pull over onto the sidewalk to clear the way.
-      if (emergencyNear && !car.siren) {
+      // Emergency handling for non-siren cars. While the ambulance is near they
+      // pull over to the kerb; once it has passed they steer back into their own
+      // lane instead of driving on forever along the sidewalk. The lane centre
+      // comes from the route's start offset (x for the main road, z for a side
+      // road), so the car returns to exactly where it belongs.
+      if (!car.siren) {
         const alongZ = Math.abs(fwd.z) >= Math.abs(fwd.x); // travelling on the main road?
-        const inBox = Math.abs(pos.x) < 7 && Math.abs(pos.z) < 7;
-        if (alongZ) {
-          const cx = (pos.x >= 0 ? 1 : -1) * 5.5;        // curb of the main road
-          pos.x += (cx - pos.x) * Math.min(1, dt * 1.8);
-        } else {
-          const cz = (pos.z >= 0 ? 1 : -1) * 5.5;        // curb of the side road
-          pos.z += (cz - pos.z) * Math.min(1, dt * 1.8);
+        const laneX = car.route.start[0];
+        const laneZ = car.route.start[2];
+        if (emergencyNear) {
+          const inBox = Math.abs(pos.x) < 7 && Math.abs(pos.z) < 7;
+          if (alongZ) {
+            const cx = Math.sign(laneX) * 5.5;            // kerb on the car's own side of the main road
+            pos.x += (cx - pos.x) * Math.min(1, dt * 1.8);
+          } else {
+            const cz = Math.sign(laneZ) * 5.5;            // kerb on the car's own side of the side road
+            pos.z += (cz - pos.z) * Math.min(1, dt * 1.8);
+          }
+          // Keep rolling out of the intersection rather than freezing in it; once
+          // clear, stop at the kerb.
+          target = inBox && !blocked ? Math.min(car.cruise, 4) : 0;
+        } else if (alongZ && Math.abs(pos.x - laneX) > 0.02) {
+          pos.x += (laneX - pos.x) * Math.min(1, dt * 1.8); // ease back into the main-road lane
+        } else if (!alongZ && Math.abs(pos.z - laneZ) > 0.02) {
+          pos.z += (laneZ - pos.z) * Math.min(1, dt * 1.8); // ease back into the side-road lane
         }
-        // Keep rolling out of the intersection rather than freezing in it; once
-        // clear, stop at the curb.
-        target = inBox && !blocked ? Math.min(car.cruise, 4) : 0;
       }
 
       // Aggressive overtake: crawl behind the AV, honk once or twice in

@@ -1,0 +1,5 @@
+# Netlify configuration for the eHMI simulation.
+# Static site, no build step: just publish the repository root as-is.
+[build]
+  publish = "."
+  command = ""

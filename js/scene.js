@@ -83,7 +83,11 @@ export function createScene() {
 export const LAYOUT = {
   roadWidth: 8,
   sidewalk: 3,
-  zebraZ: 6,
+  // Crossing point on the main street, well NORTH of the junction (which spans
+  // z in [-4, 4]). Placed far enough up the road that a vehicle yielding here
+  // comes to rest with its whole body clear of the junction, so it never stands
+  // in the intersection blocking the cross streets.
+  zebraZ: 12,
 };
 
 function buildEnvironment(scene) {
@@ -104,8 +108,9 @@ function buildEnvironment(scene) {
   // threshold under bright sun (bloom is reserved for the eHMI LED band).
   const lineMat = new THREE.MeshStandardMaterial({ color: 0x9c988b, roughness: 0.8 });
 
-  // Ground base
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(220, 220), grass);
+  // Ground base (extended so the continuous-walk corridor up the main street
+  // has ground/road under it the whole way).
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), grass);
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = -0.02;
   ground.receiveShadow = true;
@@ -114,7 +119,7 @@ function buildEnvironment(scene) {
   // Flush sidewalks (thin slabs, not raised curbs — the walking area is not a
   // separated step). Drawn first so the roads sit on top at the intersection.
   for (const sx of [-1, 1]) {
-    const sw = new THREE.Mesh(new THREE.PlaneGeometry(sidewalk, 220), pavement);
+    const sw = new THREE.Mesh(new THREE.PlaneGeometry(sidewalk, 300), pavement);
     sw.rotation.x = -Math.PI / 2;
     sw.position.set(sx * (roadWidth / 2 + sidewalk / 2), 0.002, 0);
     sw.receiveShadow = true;
@@ -130,7 +135,7 @@ function buildEnvironment(scene) {
 
   // Roads (two crossing strips), main slightly below side so the side road
   // reads as crossing over at the junction.
-  const mainRoad = new THREE.Mesh(new THREE.PlaneGeometry(roadWidth, 220), asphaltMain);
+  const mainRoad = new THREE.Mesh(new THREE.PlaneGeometry(roadWidth, 300), asphaltMain);
   mainRoad.rotation.x = -Math.PI / 2;
   mainRoad.position.y = 0.004;
   mainRoad.receiveShadow = true;
@@ -149,7 +154,7 @@ function buildEnvironment(scene) {
     m.position.set(x, 0.012, z);
     scene.add(m);
   };
-  for (const sx of [-1, 1]) addLine(0.16, 220, sx * (roadWidth / 2 - 0.2), 0);  // main road edges
+  for (const sx of [-1, 1]) addLine(0.16, 300, sx * (roadWidth / 2 - 0.2), 0);  // main road edges
   for (const sz of [-1, 1]) addLine(220, 0.16, 0, sz * (roadWidth / 2 - 0.2));  // side road edges
 
   // No painted crossing here on purpose: the pedestrian has no legal right of
@@ -158,7 +163,7 @@ function buildEnvironment(scene) {
 
   // Center lane dashes on the main road
   const dashMat = new THREE.MeshStandardMaterial({ color: 0x9a9580, roughness: 0.85 });
-  for (let z = -100; z <= 100; z += 6) {
+  for (let z = -140; z <= 140; z += 6) {
     if (Math.abs(z) < roadWidth / 2 + 2) continue; // skip intersection
     const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 2.4), dashMat);
     dash.rotation.x = -Math.PI / 2;
@@ -172,7 +177,7 @@ function buildEnvironment(scene) {
   const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   for (const cx of [-1, 1]) {
     for (const cz of [-1, 1]) {
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < 10; i++) { // rows extended up the corridor for the walk
         const w = 6 + rand() * 6, d = 6 + rand() * 6, h = 6 + rand() * 16;
         const b = new THREE.Mesh(
           new THREE.BoxGeometry(w, h, d),
@@ -187,8 +192,14 @@ function buildEnvironment(scene) {
     }
   }
 
-  // Street lamps near the crossing
-  for (const [x, z] of [[-roadWidth / 2 - 1, zebraZ + 2], [roadWidth / 2 + 1, zebraZ - 2]]) {
+  // Street lamps: a pair by the origin crossing, plus a staggered line of them
+  // up the main street so the walk corridor reads as a real, lit street.
+  const lampSpots = [[-roadWidth / 2 - 1, zebraZ + 2], [roadWidth / 2 + 1, zebraZ - 2]];
+  for (let z = 24; z <= 116; z += 23) {
+    lampSpots.push([-roadWidth / 2 - 1, z]);
+    lampSpots.push([roadWidth / 2 + 1, z + 11]);
+  }
+  lampSpots.forEach(([x, z], i) => {
     const pole = new THREE.Mesh(
       new THREE.CylinderGeometry(0.07, 0.09, 4.5),
       new THREE.MeshStandardMaterial({ color: 0x222630 })
@@ -200,11 +211,26 @@ function buildEnvironment(scene) {
     head.position.set(x, 4.5, z);
     scene.add(head);
     lampMats.push(lampMat);
-    const light = new THREE.PointLight(0xffc070, 14, 18, 2);
-    light.position.set(x, 4.4, z);
-    scene.add(light);
-    lampLights.push(light);
-  }
+    // Only the crossing pair casts an actual point light. The corridor lamps are
+    // visual only (emissive heads), so the scene does not carry a dozen dynamic
+    // lights, which would make the forward renderer crawl.
+    if (i < 2) {
+      const light = new THREE.PointLight(0xffc070, 14, 18, 2);
+      light.position.set(x, 4.4, z);
+      scene.add(light);
+      lampLights.push(light);
+    }
+  });
+
+  // Right-of-way signage, on the kerb (never in the carriageway). The main road
+  // has priority: the AV legally has right of way and could continue, so when it
+  // stops for a pedestrian that is a prosocial choice, not an obligation. The two
+  // side streets must give way. Each sign sits on a different pavement corner and
+  // faces the traffic it governs, so the junction reads like a real one.
+  //   main road x in [-4,4], side road z in [-4,4]; pavements at +/-5.5.
+  placeSign(scene, 'priority', 5.5, -6, Math.PI);       // SE corner, faces the northbound AV
+  placeSign(scene, 'yield', -6, -5.5, -Math.PI / 2);    // SW corner, faces eastbound side-street traffic (the merging car)
+  placeSign(scene, 'yield',  6,  5.5,  Math.PI / 2);    // NE corner, faces westbound side-street traffic
 
   // Toggle artificial lights: factor 0 = off (daylight), 1 = full (night)
   function setNightLights(factor) {
@@ -239,4 +265,63 @@ function addWindows(scene, building, w, h, d, rand, litWindows) {
       scene.add(m);
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Traffic signs (3D). 'yield' = give way (downward red/white triangle),
+// 'priority' = priority road (yellow/white diamond). Built facing +Z; aim with
+// the group's Y rotation when placing.
+// ---------------------------------------------------------------------------
+function yieldTriangleGeo(size) {
+  const h = size * Math.sqrt(3) / 2;
+  const s = new THREE.Shape();
+  s.moveTo(-size / 2, h / 2);   // top-left
+  s.lineTo(size / 2, h / 2);    // top-right
+  s.lineTo(0, -h / 2);          // bottom point (give-way points down)
+  s.closePath();
+  return new THREE.ShapeGeometry(s);
+}
+
+function buildSign(kind) {
+  const g = new THREE.Group();
+  const dbl = THREE.DoubleSide;
+  const faceY = 2.05;          // sign centre height
+  const poleBack = -0.06;      // pole sits just behind the sign face
+
+  // The pole stops at the sign centre and sits behind the face, so it reads as
+  // a mounting post instead of skewering the sign. The face planes are a hair
+  // in front of the pole (z >= 0) so nothing pokes through from the front.
+  const poleMat = new THREE.MeshStandardMaterial({ color: 0x9aa0aa, roughness: 0.55, metalness: 0.4 });
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.05, faceY, 8), poleMat);
+  pole.position.set(0, faceY / 2, poleBack);
+  pole.castShadow = true;
+  g.add(pole);
+
+  if (kind === 'yield') {
+    const red = new THREE.Mesh(yieldTriangleGeo(0.9), new THREE.MeshStandardMaterial({ color: 0xc62828, roughness: 0.5, side: dbl }));
+    red.position.set(0, faceY, 0);
+    red.castShadow = true;
+    g.add(red);
+    const white = new THREE.Mesh(yieldTriangleGeo(0.58), new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.5, side: dbl }));
+    white.position.set(0, faceY, 0.02);
+    g.add(white);
+  } else if (kind === 'priority') {
+    const white = new THREE.Mesh(new THREE.PlaneGeometry(0.78, 0.78), new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.5, side: dbl }));
+    white.position.set(0, faceY, 0);
+    white.rotation.z = Math.PI / 4;
+    white.castShadow = true;
+    g.add(white);
+    const yellow = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 0.58), new THREE.MeshStandardMaterial({ color: 0xf2c40a, roughness: 0.5, side: dbl }));
+    yellow.position.set(0, faceY, 0.02);
+    yellow.rotation.z = Math.PI / 4;
+    g.add(yellow);
+  }
+  return g;
+}
+
+function placeSign(scene, kind, x, z, yaw) {
+  const s = buildSign(kind);
+  s.position.set(x, 0, z);
+  s.rotation.y = yaw;
+  scene.add(s);
 }
