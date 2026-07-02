@@ -2,10 +2,10 @@
 import * as THREE from 'three';
 import { createScene, LAYOUT } from './scene.js?v=47';
 import { AV } from './vehicle.js?v=36';
-import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=45';
+import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=53';
 import { EHMISound } from './audio.js?v=17';
 import { BehaviorLogger, showConfidenceCheck } from './logger.js?v=15';
-import { ScenarioRunner } from './scenarios.js?v=52';
+import { ScenarioRunner } from './scenarios.js?v=53';
 
 const { scene, camera, renderer, composer, setTimeOfDay } = createScene();
 

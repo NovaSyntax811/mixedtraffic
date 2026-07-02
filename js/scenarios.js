@@ -67,17 +67,20 @@ export class ScenarioRunner {
       this.traffic?.clearScripted();
       this.av.group.visible = false;
       this.pedestrian.group.position.set(-(LAYOUT.roadWidth / 2 + LAYOUT.sidewalk / 2), 0, 0);
+      // Station spacing sets the walk's pacing: ~26 m between crossings keeps a
+      // short breather between encounters without long empty stretches. Tune the
+      // z values here after playtests.
       this._walkStations = [
         { kind: 'uncertainty', z: 26, maxWait: 9,
           intro: 'A car is coming up the street. You are just walking here.',
           outro: 'It stopped for you anyway. Did you actually want to cross, or did it misread you?' },
-        { kind: 'targeted', z: 54, maxWait: 13,
+        { kind: 'targeted', z: 52, maxWait: 13,
           intro: 'Someone is waiting on the far pavement as a car approaches.',
           outro: 'The car gave way. Was that signal for you, or for the person opposite?' },
-        { kind: 'negotiation', z: 82, maxWait: 13,
+        { kind: 'negotiation', z: 78, maxWait: 13,
           intro: 'A car approaches, with an impatient one close behind it.',
           outro: 'The first car gave way, but the driver behind would not wait.' },
-        { kind: 'scalability', z: 110, maxWait: 14,
+        { kind: 'scalability', z: 104, maxWait: 14,
           intro: 'People are waiting on both sides of the street as a car comes.',
           outro: 'One car, several people. Who was its signal really meant for?' },
       ];
@@ -537,6 +540,11 @@ export class ScenarioRunner {
     this._timer = 0;
     this._stationActorsDone = false;
     this._npcCrossDelay = undefined;
+    // Which pavement the player is on when the encounter begins. After crossing
+    // at a station they may carry on up the other side; every station works from
+    // either side (crossing then means going the other way), so nobody has to
+    // cross back just to continue the walk.
+    this._stationSide = this.pedestrian.group.position.x >= 0 ? 1 : -1;
     // The car comes up from behind (the side a crossing pedestrian checks first),
     // a little south of the crossing, and approaches at the set speed.
     this.av.group.visible = true;
@@ -598,7 +606,9 @@ export class ScenarioRunner {
         // Hold at the frozen stop target (no creeping toward the pedestrian).
         this._brakeToStopLine(this.av, this._stationStopZ);
         this._updateStationActors(dt, st);
-        const crossed = p.x > LAYOUT.roadWidth / 2 + 0.5;
+        // Crossed = reached the pavement OPPOSITE the one this station started
+        // on (works in both directions, so the walk continues on either side).
+        const crossed = -this._stationSide * p.x > LAYOUT.roadWidth / 2 + 0.5;
         const walkedPast = p.z > st.z + 6;
         if (crossed) { this.logger.event('walk_crossed', { kind: st.kind }); this._endStation(st); }
         else if (this._timer > st.maxWait || walkedPast) { this.logger.event('walk_not_crossed', { kind: st.kind }); this._endStation(st); }
@@ -630,21 +640,28 @@ export class ScenarioRunner {
   }
 
   // Bring in the station's extra road users at the moment the car yields.
+  // Placements are relative to the pavement the player is on (this._stationSide),
+  // so the staging works no matter which side they walked up.
   _triggerStationActors(st) {
+    const side = this._stationSide || -1;
     if (st.kind === 'targeted') {
-      this.npcs?.[0]?.place(5.5, st.z, -Math.PI / 2); // person on the far kerb (the real addressee)
+      this.npcs?.[0]?.place(-side * 5.5, st.z, side * Math.PI / 2); // person on the far kerb (the real addressee)
       this._npcCrossDelay = 1.8;
     } else if (st.kind === 'scalability') {
-      this.npcs?.[0]?.place(-5.5, st.z - 2, Math.PI / 2);  // near side, just behind the player
-      this.npcs?.[1]?.place(5.5, st.z + 1.5, -Math.PI / 2); // far side
+      this.npcs?.[0]?.place(side * 5.5, st.z - 2, -side * Math.PI / 2);  // near side, just behind the player
+      this.npcs?.[1]?.place(-side * 5.5, st.z + 1.5, side * Math.PI / 2); // far side
       this._npcCrossDelay = 1.6;
     } else if (st.kind === 'negotiation') {
       // An impatient car a little behind the yielding AV: it honks, then
       // overtakes across the crossing. (Reactions are relative to the AV, so it
-      // works anywhere along the street.)
+      // works anywhere along the street.) safeOvertake: inside the walk the
+      // overtaker still brakes for people in the road — the threat stays, but a
+      // collision cannot abort the whole walk. The standalone scenario 6 keeps
+      // the real hazard.
       const imp = this.traffic?.spawnScripted({
         kind: 'car', route: 'northAV', offset: 20, cruise: this.approachSpeed + 5,
-        color: 0x1c1c20, honkWhenBlocked: true, overtakeAV: true, ignoreZebra: true, patience: 1.8,
+        color: 0x1c1c20, honkWhenBlocked: true, overtakeAV: true, ignoreZebra: true,
+        patience: 1.8, safeOvertake: true,
       });
       if (imp) { imp.mesh.position.set(-1.9, 0, this.av.group.position.z - 16); imp.speed = this.approachSpeed; }
       this.onMessage?.('The car yields for you, but the one behind is not waiting.');
@@ -652,12 +669,13 @@ export class ScenarioRunner {
   }
 
   _updateStationActors(dt, st) {
+    const side = this._stationSide || -1;
     if (this._npcCrossDelay !== undefined) {
       this._npcCrossDelay -= dt;
       if (this._npcCrossDelay <= 0) {
         this._npcCrossDelay = undefined;
-        if (st.kind === 'targeted') this.npcs?.[0]?.startCross(-5.6);       // far -> near, across the crossing
-        else if (st.kind === 'scalability') this.npcs?.[0]?.startCross(5.6); // near person crosses; far one stays
+        if (st.kind === 'targeted') this.npcs?.[0]?.startCross(side * 5.6);        // far -> near (toward the player's side)
+        else if (st.kind === 'scalability') this.npcs?.[0]?.startCross(-side * 5.6); // near person crosses; far one stays
       }
     }
   }
