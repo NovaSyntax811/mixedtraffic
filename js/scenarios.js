@@ -2,10 +2,9 @@
 // Detection -> Decision -> Action (signal) -> Acknowledgment -> Outcome
 import { LAYOUT } from './scene.js?v=47';
 
-let ZEBRA = LAYOUT.zebraZ;
-export function setCrossingZ(z) { ZEBRA = z; }
-const PREROLL = 2;       // vehicle holds briefly so ambient traffic clears, then
-                         // begins approaching — longer start distance compensates
+const ZEBRA = LAYOUT.zebraZ;
+const PREROLL = 5;       // short opening hold: the car waits a few seconds so the
+                         // player can orient and walk around before it approaches
 const STOP_BEFORE = 3.2; // the vehicle nose stops this far before the crossing (clearly before it)
 // Southernmost the vehicle nose may rest and still keep its whole ~4.4 m body
 // north of the junction (junction north edge = roadWidth/2). Stops are clamped
@@ -46,8 +45,6 @@ export class ScenarioRunner {
     this.quietEdge = false;
     this._stillTimer = 0;
     this._dynamicStopZ = null;
-    this._walkStillTimer = 0;
-    this._walkDynamicStopZ = null;
     this.setPhase('idle', 'Press Start, then decide when to cross.');
   }
 
@@ -56,7 +53,9 @@ export class ScenarioRunner {
     this.scenario = scenario;
     this.running = true;
     this.logger.startRun(scenario);
-    this._preroll = PREROLL; // suppress detection logic briefly; vehicle already rolling
+    // Free-walk lead-in: the vehicle holds for a few seconds so the player can
+    // walk around and get oriented before it starts approaching.
+    this._preroll = PREROLL;
 
     if (scenario === 'walk') {
       // Continuous walk: a single journey north past several encounters, each
@@ -68,7 +67,6 @@ export class ScenarioRunner {
       this.traffic?.clearScripted();
       this.av.group.visible = false;
       this.pedestrian.group.position.set(-(LAYOUT.roadWidth / 2 + LAYOUT.sidewalk / 2), 0, 0);
-
       this._walkStations = [
         { kind: 'uncertainty', z: 26, maxWait: 9,
           intro: 'A car is coming up the street. You are just walking here.',
@@ -92,18 +90,13 @@ export class ScenarioRunner {
       return;
     }
 
-    // The crossing is wherever the player is standing right now — no teleport.
-    // The vehicle starts 80 m south of that and approaches naturally.
-    ZEBRA = this.pedestrian.group.position.z;
-    this.av.group.position.z = ZEBRA - 80;
-
     if (scenario === 1) {
       // Baseline: same yielding interaction, but a human-driven car and no
       // eHMI of any kind — the comparison condition. (Scenario 1 = first in
       // the study order so participants see the control before any eHMI.)
       this.av.group.visible = false;
       this.humanCar.spawn();
-      this.humanCar.group.position.z = ZEBRA - 80;
+      this.humanCar.targetSpeed = this.approachSpeed;
       this.setPhase('approach', 'An ordinary car is approaching, with no crossing here. Will it let you cross? (W/↑)');
       return;
     }
@@ -147,7 +140,7 @@ export class ScenarioRunner {
       this._timeline = [
         {
           t: 0.3, fn: () => {
-            this.traffic.spawnScripted({ kind: 'car', route: 'northAV', offset: 96, cruise: 13, color: 0x1c1c20, honkWhenBlocked: true, overtakeAV: true, ignoreZebra: true, patience: 2.4 });
+            this.traffic.spawnScripted({ kind: 'car', route: 'northAV', offset: 76, cruise: 13, color: 0x1c1c20, honkWhenBlocked: true, overtakeAV: true, ignoreZebra: true, patience: 2.4 });
             this.logger.event('tailgater_spawned');
             this.onMessage?.('An impatient driver is tailgating the AV…');
           },
@@ -227,17 +220,20 @@ export class ScenarioRunner {
     // so the dynamic stop target is ready when the AV starts approaching.
     this._updatePedestrianDetection(dt);
 
-    // Brief hold so any ambient traffic in the lane has time to clear before
-    // the AV starts moving. Shorter than the original 5 s because the longer
-    // start distance (ZEBRA-80) already provides a natural approach window.
+    // Free-walk lead-in: hold the vehicles, let the player roam, then release.
     if (this._preroll > 0) {
       this.av.targetSpeed = 0;
       this.humanCar.targetSpeed = 0;
+      if (this._prerollMsg !== true) {
+        this.onMessage?.('Take a moment and walk around. The vehicle will start approaching shortly.');
+        this._prerollMsg = true;
+      }
       this._preroll -= dt;
       if (this._preroll <= 0) {
+        this._prerollMsg = false;
         if (this.scenario === 1) this.humanCar.targetSpeed = this.approachSpeed;
         else this.av.targetSpeed = this.approachSpeed;
-        if (this._lastMsg) this.onMessage?.(this._lastMsg);
+        if (this._lastMsg) this.onMessage?.(this._lastMsg); // restore scenario message
       }
       return;
     }
@@ -328,7 +324,7 @@ export class ScenarioRunner {
         }
         break;
       case 'outcome':
-        if (this.av.group.position.z > ZEBRA + 40) this._finish();
+        if (this.av.group.position.z > 55) this._finish();
         break;
     }
   }
@@ -370,7 +366,7 @@ export class ScenarioRunner {
         }
         break;
       case 'outcome':
-        if (this.humanCar.group.position.z > ZEBRA + 40) this._finish();
+        if (this.humanCar.group.position.z > 55) this._finish();
         break;
     }
   }
@@ -501,7 +497,7 @@ export class ScenarioRunner {
         }
         break;
       case 'outcome':
-        if (this.av.group.position.z > ZEBRA + 40) this._finish();
+        if (this.av.group.position.z > 55) this._finish();
         break;
     }
   }
@@ -550,46 +546,25 @@ export class ScenarioRunner {
     this.av.targetSpeed = this.approachSpeed;
     this.av.setBandState('neutral', true);
     this.av.setDisplay('off');
-    this._walkStillTimer = 0;
-    this._walkDynamicStopZ = null;
     this.logger.event('walk_station_start', { kind: st.kind, z: st.z });
     this.onPhase?.(st.kind);
     this.onMessage?.(st.intro);
   }
 
-  // Accumulate stillness while the pedestrian waits beside the road near a
-  // station. After 3 seconds the dynamic stop target locks onto their z,
-  // so the AV reacts to where the person actually is. While they are still
-  // walking (or before the timer fires), the car aims for the nominal fixed
-  // line and does not chase a moving target.
-  _updateWalkStillness(dt, st) {
+  // Where the car should aim to stop. If the player is waiting (standing still)
+  // beside the road near this station, the car stops ~1 m short of them, so it
+  // reacts to where the person actually is. While the player is still walking,
+  // it just aims for the nominal line before the crossing (no creeping after a
+  // moving target).
+  _walkStopZ(st) {
     const p = this.pedestrian.group.position;
     const besideRoad = Math.abs(p.x) > LAYOUT.roadWidth / 2 - 1.0;
-    const nearStation = Math.abs(p.z - st.z) < 14;
-    if (besideRoad && nearStation && !this.pedestrian.moving) {
-      this._walkStillTimer = Math.min((this._walkStillTimer || 0) + dt, 15);
-      if (this._walkStillTimer >= 3.0 && this._walkDynamicStopZ === null) {
-        this._walkDynamicStopZ = Math.min(p.z - 1.0, st.z + 6);
-        this.logger.event('walk_pedestrian_intent_detected', { stopZ: Math.round(this._walkDynamicStopZ * 10) / 10, station: st.kind });
-      }
-    } else {
-      this._walkStillTimer = 0;
-      if (this._stationPhase === 'approach') {
-        this._walkDynamicStopZ = null; // lost wait before braking — revert to fixed line
-      }
-    }
-  }
-
-  // Where the car aims to stop: the dynamic position (locked after 3s of
-  // pedestrian stillness) or the fixed nominal line before the crossing.
-  _walkStopZ(st) {
-    return this._walkDynamicStopZ ?? (st.z - STOP_BEFORE);
+    const waitingHere = besideRoad && !this.pedestrian.moving && Math.abs(p.z - st.z) < 14;
+    const base = waitingHere ? p.z - 1.5 : st.z - STOP_BEFORE; // ~1 m clearance after braking settles
+    return Math.min(base, st.z + 6);
   }
 
   _updateStation(dt, st) {
-    if (this._stationPhase === 'approach' || this._stationPhase === 'detect') {
-      this._updateWalkStillness(dt, st);
-    }
     const p = this.pedestrian.group.position;
     switch (this._stationPhase) {
       case 'approach': {

@@ -5,7 +5,7 @@ import { AV } from './vehicle.js?v=36';
 import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=45';
 import { EHMISound } from './audio.js?v=17';
 import { BehaviorLogger, showConfidenceCheck } from './logger.js?v=15';
-import { ScenarioRunner, setCrossingZ } from './scenarios.js?v=56';
+import { ScenarioRunner } from './scenarios.js?v=52';
 
 const { scene, camera, renderer, composer, setTimeOfDay } = createScene();
 
@@ -13,14 +13,13 @@ const { scene, camera, renderer, composer, setTimeOfDay } = createScene();
 // distinct. Night is reserved for the audio-only study (screen is blacked
 // out anyway); the eHMI glow reads best at dusk for the mixed-traffic scene.
 const SCENARIO_LIGHTING = {
-  walk: 'afternoon', // Continuous walk — neutral daylight
-  1: 'day',          // Baseline — clear daylight, easy to read
-  2: 'afternoon',    // Pedestrian crossing
-  3: 'overcast',     // Edge case — flat, slightly tense
-  4: 'day',          // Merge
-  5: 'dusk',         // Mixed traffic — emergency lights pop
-  6: 'afternoon',    // Aggressive drivers
-  9: 'afternoon',    // Ambiguous signal
+  1: 'day',        // Baseline — clear daylight, easy to read
+  2: 'afternoon',  // Pedestrian crossing
+  3: 'overcast',   // Edge case — flat, slightly tense
+  4: 'day',        // Merge
+  5: 'dusk',       // Mixed traffic — emergency lights pop
+  6: 'afternoon',  // Aggressive drivers
+  9: 'afternoon',  // Ambiguous signal
 };
 
 // Quick "who's who" briefing shown at the start of each scenario, so the
@@ -74,7 +73,7 @@ const runner = new ScenarioRunner({
     sound.audioOnlyBoost = false;
     const answers = await showConfidenceCheck(!!run?.crossed);
     logger.completeRun(run, answers);
-    // HUD guidance is set by the animate loop once the dialog closes.
+    hudMsg.textContent = 'Logged. Pick a scenario and press Start for another run.';
   },
 });
 
@@ -228,34 +227,6 @@ const SCENARIO_LABELS = {
 let selectedScenario = 1;
 let protocol = null; // { step, total } while the trust protocol is running
 
-// Sequential station list. The zone alternates between z=15 (right at the
-// crossing) and z=32 (~20 m north) so the player walks a short distance between
-// encounters and returns to the crossing every two scenarios.
-// The crossing z is not fixed — it is wherever the player stands when they click
-// "Start", so the vehicle approaches them rather than teleporting them anywhere.
-// Study order: baseline → eHMI yield → edge case → mixed traffic → impatient → ambiguous.
-const STATIONS = [
-  { scenario: 1, zoneZ: 15 },
-  { scenario: 2, zoneZ: 32 },
-  { scenario: 3, zoneZ: 15 },
-  { scenario: 5, zoneZ: 32 },
-  { scenario: 6, zoneZ: 15 },
-  { scenario: 9, zoneZ: 32 },
-];
-let playlistIndex = 0;
-
-function advanceToNext() {
-  if (runner.running) return;
-  if (!$('confidenceDialog').classList.contains('hidden') ||
-      !$('recap').classList.contains('hidden')) return;
-  if (playlistIndex >= STATIONS.length) return;
-  const station = STATIONS[playlistIndex];
-  playlistIndex++;
-  selectedScenario = station.scenario;
-  $('scenarioLabel').textContent = SCENARIO_LABELS[station.scenario];
-  showBriefing(station.scenario);
-}
-
 function setBlackout(on) { $('blackout').classList.toggle('hidden', !on); }
 
 // Core run starter: configures the study modes that belong to the scenario.
@@ -327,7 +298,7 @@ $('introNext').addEventListener('click', () => { if (introStep < INTRO_STEPS) { 
 $('introBack').addEventListener('click', () => { if (introStep > 1) { introStep--; renderIntroStep(); } });
 $('introStart').addEventListener('click', () => {
   $('introDialog').classList.add('hidden');
-  // The animate loop immediately shows the kerb-trigger guidance.
+  $('scenarioMenu').classList.remove('hidden');
 });
 
 $('menuBtn').addEventListener('click', () => $('scenarioMenu').classList.remove('hidden'));
@@ -347,7 +318,6 @@ document.querySelectorAll('.scenario-card').forEach((card) => {
     selectedScenario = /^\d+$/.test(v) ? parseInt(v, 10) : v;
     $('scenarioLabel').textContent = SCENARIO_LABELS[selectedScenario];
     $('scenarioMenu').classList.add('hidden');
-    setCrossingZ(LAYOUT.zebraZ); // reset to the default crossing when launching manually
     startSelected();
   });
 });
@@ -524,48 +494,6 @@ const clock = new THREE.Clock();
 const ROAD_HALF = LAYOUT.roadWidth / 2;
 let sirenWasActive = false;
 let lastLookingAtVehicle = false;
-let zoneElapsed = 0;
-
-// Blinking ground marker on the west pavement at the crossing: the player
-// walks into it to trigger the next scenario — no button needed.
-function buildTriggerZone() {
-  const g = new THREE.Group();
-  // Centre on the west pavement, tight to the road edge, at the crossing.
-  const cx = -(LAYOUT.roadWidth / 2 + 1.4); // x = -5.4
-  const cz = LAYOUT.zebraZ;                 // z = 12
-
-  // Filled rectangle — bright enough to be caught by the bloom pass.
-  const fillMat = new THREE.MeshBasicMaterial({
-    color: 0x00d8ff, transparent: true, opacity: 0.3, depthWrite: false,
-  });
-  const fill = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 3.0), fillMat);
-  fill.rotation.x = -Math.PI / 2;
-  fill.position.y = 0.01;
-  g.add(fill);
-
-  // Rectangular outline — same colour, will glow brighter at peak.
-  const borderPts = [
-    new THREE.Vector3(-1.4, 0, -1.5), new THREE.Vector3(1.4, 0, -1.5),
-    new THREE.Vector3(1.4, 0,  1.5),  new THREE.Vector3(-1.4, 0,  1.5),
-    new THREE.Vector3(-1.4, 0, -1.5),
-  ];
-  const borderMat = new THREE.LineBasicMaterial({ color: 0x00d8ff });
-  const border = new THREE.Line(
-    new THREE.BufferGeometry().setFromPoints(borderPts), borderMat);
-  border.position.y = 0.02;
-  g.add(border);
-
-  // Point light: soft cyan tint on the pavement when the zone pulses.
-  const zonePt = new THREE.PointLight(0x00d8ff, 0, 7, 2);
-  zonePt.position.set(0, 1.5, 0);
-  g.add(zonePt);
-
-  g.position.set(cx, 0, cz);
-  g.visible = false;
-  scene.add(g);
-  return { g, fillMat, borderMat, zonePt };
-}
-const triggerZone = buildTriggerZone();
 
 function animate() {
   requestAnimationFrame(animate);
@@ -614,43 +542,6 @@ function animate() {
   for (const n of npcs) if (n.group.visible) pedObstacles.push({ pos: n.group.position, r: 0.8, name: 'pedestrian' });
   mergingCar.update(dt, pedObstacles);
   runner.update(dt);
-
-  // Trigger zone: show the blinking pavement marker while between scenarios,
-  // and start the next one the moment the player steps inside it. The zone
-  // shifts north with each station so the player feels forward momentum.
-  {
-    const dialogOpen = !$('confidenceDialog').classList.contains('hidden')
-                    || !$('recap').classList.contains('hidden')
-                    || !$('introDialog').classList.contains('hidden');
-    const zoneActive = !runner.running && !dialogOpen && playlistIndex < STATIONS.length;
-    triggerZone.g.visible = zoneActive;
-
-    if (zoneActive) {
-      const station = STATIONS[playlistIndex];
-      triggerZone.g.position.z = station.zoneZ; // shift zone to this station's position
-      zoneElapsed += dt;
-      // Sharp upward pulse (1.25 Hz) — reads clearly at a glance.
-      const beat = Math.pow(0.5 + 0.5 * Math.sin(zoneElapsed * Math.PI * 2.5), 3);
-      const bright = 1.0 + 3.5 * beat;
-      triggerZone.fillMat.opacity = 0.08 + 0.38 * beat;
-      triggerZone.borderMat.color.setRGB(0, 0.85 * bright, bright);
-      triggerZone.zonePt.intensity = 7 * beat;
-
-      const cx = -(LAYOUT.roadWidth / 2 + 1.4);
-      const inZone = Math.abs(p.x - cx) < 1.4 && Math.abs(p.z - station.zoneZ) < 1.5;
-      if (inZone) {
-        advanceToNext();
-      } else {
-        hudMsg.textContent = 'Walk to the glowing area to continue.';
-      }
-    } else {
-      zoneElapsed = 0;
-      if (!runner.running && !dialogOpen && playlistIndex >= STATIONS.length) {
-        hudMsg.textContent = 'All scenarios complete. Use ☰ to replay any.';
-      }
-    }
-  }
-
   checkPedestrianCollisions();
   checkVehicleCollisions();
   updateCamera(dt);
