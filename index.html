@@ -20,8 +20,7 @@
   <!-- ===== UI overlay ===== -->
   <div id="ui">
     <div id="topbar" class="panel">
-      <button id="menuBtn">☰ Scenarios</button>
-      <span id="scenarioLabel" class="scenario-label">1 · A car with no signals</span>
+      <span id="scenarioLabel" class="scenario-label">Scenario 1</span>
       <button id="restartBtn">↺ Restart</button>
       <span id="phaseLabel" class="phase">idle</span>
     </div>
@@ -29,7 +28,7 @@
     <button id="adminBtn" class="panel" title="Admin menu (O)">⚙</button>
 
     <div id="hud" class="panel">
-      <span id="hudMsg">Press Start, then decide when to cross.</span>
+      <span id="hudMsg">You can walk around freely. The next situation will start in a moment.</span>
     </div>
   </div>
 
@@ -39,7 +38,7 @@
       <h3 id="recapTitle">Who's who</h3>
       <div id="recapBody"></div>
       <div class="recap-actions">
-        <button id="recapCancel">← Back to menu</button>
+        <button id="recapCancel">Cancel</button>
         <button id="recapStart">▶ Start scenario</button>
       </div>
     </div>
@@ -72,9 +71,9 @@
         signals actually help you decide, or whether you'd cross anyway.</p>
         <p>There are <strong>no marked crossings</strong> here. When a car stops to let you cross,
         it is yielding <em>by choice</em> (prosocially), not because the law obliges it.</p>
-        <p>Some scenarios are tricky on purpose: a signal meant for someone else, a cyclist the
-        car never saw, aggressive drivers. There are <strong>no right or wrong choices</strong>.
-        We study <em>your</em> judgement. Your decisions and reaction times are logged anonymously.</p>
+        <p>Some situations are busier than others. There are <strong>no right or wrong
+        choices</strong>. We study <em>your</em> judgement. Your decisions and reaction
+        times are logged anonymously.</p>
       </div>
 
       <div class="intro-step" data-step="3" hidden>
@@ -82,7 +81,7 @@
         <ul class="intro-list">
           <li>You are the <strong>pedestrian</strong>. Move with <strong>W / A / S / D</strong> or the arrow keys, drag the <strong>mouse</strong> to look around.</li>
           <li>Watch the approaching vehicle and <strong>decide for yourself when to cross</strong>. There is no prompt telling you to go.</li>
-          <li>Start with <strong>Scenario&nbsp;1</strong>, then work through the list in order.</li>
+          <li>The researcher starts each situation for you. <strong>Between situations you can walk around freely</strong> to get used to the controls.</li>
           <li>After each run a <strong>short survey</strong> pops up: why you crossed (or didn't) and how safe you felt (1 to 7). Answer honestly, your first instinct is fine.</li>
         </ul>
         <p class="intro-note">Take your time; you can replay any scenario.</p>
@@ -93,34 +92,38 @@
         <span class="intro-buttons">
           <button id="introBack" hidden>← Back</button>
           <button id="introNext">Next →</button>
-          <button id="introStart" hidden>Got it, choose a scenario</button>
+          <button id="introStart" hidden>Got it</button>
         </span>
       </div>
     </div>
   </div>
 
-  <!-- ===== Scenario menu ===== -->
-  <div id="scenarioMenu" class="modal hidden">
-    <div class="modal-box menu-box">
-      <h3>Scenarios</h3>
-      <div class="scenario-list">
-        <button class="scenario-card" data-scenario="1"><strong>1 · A car with no signals</strong><span>An ordinary car driven by a person, with no signals at all. Your reference run, so cross whenever you judge it safe.</span></button>
-        <button class="scenario-card" data-scenario="2"><strong>2 · A car that lets you cross</strong><span>An automated car shows its intent with a light band, a windshield display and sound, and chooses to let you cross even though there is no marked crossing.</span></button>
-        <button class="scenario-card" data-scenario="3"><strong>3 · The car missed a cyclist</strong><span>The car detects you and yields, but a cyclist races up from behind that it never saw. Its signal only speaks for that one car, so keep watching the road yourself.</span></button>
-        <button class="scenario-card" data-scenario="4"><strong>4 · A signal for the other car</strong><span>The car yields and signals "After you" to let another driver merge in from a side street. The message is for the car, but is it also an invitation for you? Decide for yourself.</span></button>
-        <button class="scenario-card" data-scenario="5"><strong>5 · A busy intersection</strong><span>A bus, a truck, a cyclist and an ambulance everyone pulls over for. Judge your crossing in the middle of it all.</span></button>
-        <button class="scenario-card" data-scenario="6"><strong>6 · Impatient drivers</strong><span>The car yields for you correctly, but an impatient driver behind it honks and overtakes right across your path. The car is safe. The others are not.</span></button>
-        <button class="scenario-card" data-scenario="9"><strong>9 · Is the signal for you?</strong><span>Several people wait to cross. The car yields and waves, but its signal may be meant for someone else, not you. Decide for yourself.</span></button>
-        <button class="scenario-card highlight" data-scenario="walk"><strong>★ A walk through town</strong><span>One continuous walk up the street. The car turns up at several points and reacts to where you are: it stops when you were only passing, gives way with someone waiting opposite, gets overtaken by an impatient driver, and faces people on both sides.</span></button>
-      </div>
-      <button id="menuClose">Close</button>
-    </div>
-  </div>
+  <!-- ===== Admin menu (researcher controls; opened with the ⚙ button or "O") =====
+       Scenario selection lives HERE so participants and a watching focus group
+       never see a list of what is coming. Buttons show numbers only; the
+       number-to-content mapping is documented in DOCUMENTATION.md:
+       1 baseline (no eHMI) · 3 unnoticed cyclist · 4 signal to the other car ·
+       6 impatient driver · 9 several waiting people — extras: 2 plain yield · 5 busy street -->
 
-  <!-- ===== Admin menu (researcher controls; opened with the ⚙ button or "O") ===== -->
   <div id="adminMenu" class="modal hidden">
     <div class="modal-box admin-box">
       <h3>Admin</h3>
+
+      <div class="admin-group">
+        <span class="admin-label">Start scenario (study set)</span>
+        <div class="admin-row">
+          <button data-scn="1">1</button>
+          <button data-scn="3">3</button>
+          <button data-scn="4">4</button>
+          <button data-scn="6">6</button>
+          <button data-scn="9">9</button>
+        </div>
+        <span class="admin-label">Extras (demo only)</span>
+        <div class="admin-row">
+          <button data-scn="2">2</button>
+          <button data-scn="5">5</button>
+        </div>
+      </div>
 
       <div class="admin-group">
         <span class="admin-label">Camera</span>
@@ -139,6 +142,7 @@
         <label><input id="toggleTraffic" type="checkbox" checked /> Ambient traffic</label>
         <label><input id="toggleCyclist" type="checkbox" /> Cyclist actor</label>
         <label><input id="toggleCar" type="checkbox" /> Merging car actor</label>
+        <label><input id="toggleConfidence" type="checkbox" checked /> Confidence check after each run</label>
       </div>
 
       <div class="admin-group admin-row">
@@ -213,6 +217,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=53"></script>
+  <script type="module" src="js/main.js?v=54"></script>
 </body>
 </html>

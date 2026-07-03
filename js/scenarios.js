@@ -45,7 +45,7 @@ export class ScenarioRunner {
     this.quietEdge = false;
     this._stillTimer = 0;
     this._dynamicStopZ = null;
-    this.setPhase('idle', 'Press Start, then decide when to cross.');
+    this.setPhase('idle', 'You can walk around freely. The next situation will start in a moment.');
   }
 
   start(scenario) {
@@ -100,7 +100,7 @@ export class ScenarioRunner {
       this.av.group.visible = false;
       this.humanCar.spawn();
       this.humanCar.targetSpeed = this.approachSpeed;
-      this.setPhase('approach', 'An ordinary car is approaching, with no crossing here. Will it let you cross? (W/↑)');
+      this.setPhase('approach', 'A car is approaching. There is no marked crossing here, so decide for yourself if and when to cross (W/↑).');
       return;
     }
 
@@ -114,7 +114,7 @@ export class ScenarioRunner {
       // (the default curb spot sits right on the car's path). The car still
       // waits rather than crashes if the player walks into its way.
       this.pedestrian.group.position.set(-5.5, 0, -7);
-      this.setPhase('approach', 'AV approaching. A car waits to merge from the left. Watch the interaction.');
+      this.setPhase('approach', 'A car is approaching on the main road, and another waits at the side street. Decide for yourself if and when to cross (W/↑).');
     } else if (scenario === 5) {
       // Mixed-traffic chaos: bus, truck, side-street cyclist, and an
       // emergency vehicle everyone has to yield to. Actors behave differently.
@@ -135,7 +135,7 @@ export class ScenarioRunner {
         },
         { t: 9.0, fn: () => this.traffic.spawnScripted({ kind: 'car', route: 'west', offset: 60, cruise: 7 }) },
       ];
-      this.setPhase('approach', 'Mixed traffic: bus, truck, cyclist… Cross when you feel safe (W/↑).');
+      this.setPhase('approach', 'A busy street. Decide for yourself if and when to cross (W/↑).');
     } else if (scenario === 6) {
       // Aggressive drivers, unhappy with the cautious AV: a tailgater honks
       // and eventually overtakes the yielding AV; oncoming traffic creeps
@@ -145,12 +145,13 @@ export class ScenarioRunner {
           t: 0.3, fn: () => {
             this.traffic.spawnScripted({ kind: 'car', route: 'northAV', offset: 76, cruise: 13, color: 0x1c1c20, honkWhenBlocked: true, overtakeAV: true, ignoreZebra: true, patience: 2.4 });
             this.logger.event('tailgater_spawned');
-            this.onMessage?.('An impatient driver is tailgating the AV…');
+            // No HUD announcement: the honking and the car itself are the cue.
+            // Naming the driver "impatient" would hand the participant the theme.
           },
         },
         { t: 4.0, fn: () => this.traffic.spawnScripted({ kind: 'car', route: 'south', offset: 55, cruise: 9, honkWhenBlocked: true, ignoreZebra: true }) },
       ];
-      this.setPhase('approach', 'Aggressive drivers who are unhappy with the cautious AV. Cross carefully (W/↑).');
+      this.setPhase('approach', 'A car is approaching. There is no marked crossing here, so decide for yourself if and when to cross (W/↑).');
     } else if (scenario === 9) {
       // Ambiguous signal (signal-scoping challenge): several pedestrians wait
       // at the crossing. The AV's yield signal is actually addressed to the
@@ -158,9 +159,9 @@ export class ScenarioRunner {
       // whether the signal applies to them too.
       this.npcs?.[0]?.place(5.5, ZEBRA, -Math.PI / 2);     // far (east) curb — the real addressee
       this.npcs?.[1]?.place(-5.5, ZEBRA + 3, Math.PI / 2); // same curb as the player, a bit north
-      this.setPhase('approach', 'Several people are waiting to cross here. Decide for yourself (W/↑).');
+      this.setPhase('approach', 'A car is approaching, and other people are waiting nearby. Decide for yourself if and when to cross (W/↑).');
     } else {
-      this.setPhase('approach', 'An AV is approaching, with no marked crossing here. See whether it yields for you (W/↑).');
+      this.setPhase('approach', 'A car is approaching. There is no marked crossing here, so decide for yourself if and when to cross (W/↑).');
     }
   }
 
@@ -281,7 +282,7 @@ export class ScenarioRunner {
         if (d < 42) {
           this.av.setBandState('assessing');
           this.av.setDisplay('detecting');
-          this.setPhase('detection', 'AV detected pedestrians (yellow band + eye icon).');
+          this.setPhase('detection'); // no narration: the participant reads the signals themselves
         }
         break;
       case 'detection': {
@@ -294,7 +295,7 @@ export class ScenarioRunner {
           this.sound.playGoAhead();
           this.logger.signalOnset();
           this._npcDelay = 1.6; // the addressee reacts shortly after the signal
-          this.setPhase('action', 'AV yields, but for whom? Decide for yourself.');
+          this.setPhase('action'); // silent: naming the ambiguity would answer the study question
         }
         break;
       }
@@ -314,7 +315,7 @@ export class ScenarioRunner {
           this.logger.event('npc_crossing_finished');
           this.av.setDisplay('thanks');
           this.sound.playThanks();
-          this.setPhase('acknowledgment', 'AV thanks you and continues.');
+          this.setPhase('acknowledgment');
         }
         break;
       }
@@ -323,7 +324,7 @@ export class ScenarioRunner {
           this.av.setDisplay('off');
           this.av.setBandState('neutral');
           this.av.targetSpeed = this.approachSpeed;
-          this.setPhase('outcome', 'AV returns to neutral and continues.');
+          this.setPhase('outcome', 'The car drives on.');
         }
         break;
       case 'outcome':
@@ -340,13 +341,15 @@ export class ScenarioRunner {
     const d = ZEBRA - this.humanCar.frontZ;
     switch (this.phase) {
       case 'approach':
-        if (d < 42) this.setPhase('decision', 'The car is slowing down…');
+        // No narration: pointing at the deceleration would annotate the very
+        // implicit cue this baseline exists to measure.
+        if (d < 42) this.setPhase('decision');
         break;
       case 'decision': {
         const gap = this._brakeToStopLine(this.humanCar, ZEBRA - STOP_BEFORE);
         if (this.humanCar.speed < 0.3 && gap < 1.0) {
           this.humanCar.targetSpeed = 0;
-          this.setPhase('action', 'The car has stopped, with no signal. Decide yourself.');
+          this.setPhase('action');
         }
         break;
       }
@@ -382,7 +385,7 @@ export class ScenarioRunner {
         if (d < 30) {
           this.av.setBandState('assessing');
           this.av.setDisplay('detecting');
-          this.setPhase('detection', 'AV detected the waiting car (yellow band).');
+          this.setPhase('detection');
         }
         break;
       case 'detection': {
@@ -397,14 +400,15 @@ export class ScenarioRunner {
           this.av.setDisplay('yielding_car');
           this.sound.playGoAhead();
           this.logger.signalOnset();
-          this.setPhase('action', 'The AV is letting the other car in. Is that signal for you too?');
+          // Silent: spelling out who the "After you" addresses is the study question.
+          this.setPhase('action');
         }
         break;
       }
       case 'action':
         if (this.av.speed < 0.2 && this._timer > 1.0) {
           this.mergingCar.merge();
-          this.setPhase('acknowledgment', 'Car is merging in front of the AV.');
+          this.setPhase('acknowledgment');
         }
         break;
       case 'acknowledgment':
@@ -415,7 +419,7 @@ export class ScenarioRunner {
           // so the AV simply returns to neutral and drives on without reacting.
           this.av.setDisplay('off');
           this.av.setBandState('neutral');
-          this.setPhase('outcome', 'The other car has merged in. The AV continues.');
+          this.setPhase('outcome', 'The cars drive on.');
         }
         break;
       case 'outcome':
@@ -444,7 +448,7 @@ export class ScenarioRunner {
         if (d < 42) {
           this.av.setBandState('assessing');
           this.av.setDisplay('detecting');
-          this.setPhase('detection', 'AV detected you (yellow band + eye icon).');
+          this.setPhase('detection');
         }
         break;
       case 'detection': {
@@ -459,16 +463,15 @@ export class ScenarioRunner {
           this.av.setDisplay('yielding');
           this.sound.playGoAhead();
           this.logger.signalOnset();
-          this.setPhase('action', 'AV yields (cyan + 👋 + tone). Cross when ready.');
+          this.setPhase('action');
           // Scenario 3 edge case: a cyclist appears behind the now-stopped AV
           // and overtakes it. The AV does NOT address it, and the cyclist does
-          // not brake for the crossing pedestrian.
+          // not brake for the crossing pedestrian. Deliberately NO warning
+          // message: noticing (or missing) the cyclist unaided is exactly the
+          // overtrust behaviour this scenario measures.
           if (this.scenario === 3) {
             this.cyclist.startOvertake(this.av);
             this.logger.event('cyclist_overtaking_unaddressed');
-            if (!this.quietEdge) {
-              this.onMessage?.('⚠ A cyclist is overtaking the AV from behind, and it will not stop for you.');
-            }
           }
         }
         break;
@@ -483,11 +486,11 @@ export class ScenarioRunner {
           this.av.setDisplay('thanks');
           this.sound.playThanks();
           this.logger.event('av_thanks');
-          this.setPhase('acknowledgment', 'AV thanks you ☺️');
+          this.setPhase('acknowledgment');
         } else if (this._timer > timeoutS && !this.logger.current?.crossed) {
           this.sound.stopYieldLoop();
           this.logger.event('timeout_no_crossing');
-          this.setPhase('acknowledgment', 'You stayed, and the AV continues.');
+          this.setPhase('acknowledgment', 'You stayed, and the car continues.');
         }
         break;
       }
@@ -496,7 +499,7 @@ export class ScenarioRunner {
           this.av.setDisplay('off');
           this.av.setBandState('neutral');
           this.av.targetSpeed = this.approachSpeed;
-          this.setPhase('outcome', 'AV returns to neutral and continues.');
+          this.setPhase('outcome', 'The car drives on.');
         }
         break;
       case 'outcome':
@@ -686,7 +689,7 @@ export class ScenarioRunner {
   }
 
   _finish() {
-    this.setPhase('cooldown', 'Scenario complete. Watch how the traffic reacts…');
+    this.setPhase('cooldown', 'This situation is complete.');
   }
 
   // Hard stop after an accident: freeze the scripted vehicles, end the run.

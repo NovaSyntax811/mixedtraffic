@@ -5,7 +5,7 @@ import { AV } from './vehicle.js?v=36';
 import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=53';
 import { EHMISound } from './audio.js?v=17';
 import { BehaviorLogger, showConfidenceCheck } from './logger.js?v=15';
-import { ScenarioRunner } from './scenarios.js?v=53';
+import { ScenarioRunner } from './scenarios.js?v=54';
 
 const { scene, camera, renderer, composer, setTimeOfDay } = createScene();
 
@@ -22,17 +22,19 @@ const SCENARIO_LIGHTING = {
   9: 'afternoon',  // Ambiguous signal
 };
 
-// Quick "who's who" briefing shown at the start of each scenario, so the
-// named characters and their behaviours don't have to be remembered.
+// Briefing shown before each run. DELIBERATELY UNBIASED for the study: each
+// briefing only introduces who is present, never what will happen, which theme
+// a scenario probes, or how the signals should be read. Scenarios 2, 3 and 6
+// share an identical briefing on purpose — any difference between them would
+// itself be a cue that "something is different this time".
 const SCENARIO_RECAP = {
-  1: { title: 'A car with no signals', lines: [['🚗 Ordinary car', 'driven by a person, with no signals at all'], ['🚶 You', 'there is no crossing here, so decide for yourself if and when to cross']] },
-  2: { title: 'A car that lets you cross', lines: [['🚐 Automated car', 'communicates with a light band, a windshield display and sound'], ['🤝 No marked crossing', 'you have no right of way, so if the car stops it is letting you cross by choice'], ['🚶 You', 'read its signals and cross when you feel safe']] },
-  3: { title: 'The car missed a cyclist', lines: [['🚐 The car', 'detects you and yields with its light band, the wave and a tone'], ['🚴 Cyclist', 'races up from behind and will NOT stop for you, because the car never saw it'], ['🚶 You', 'the signal is honest, but it only speaks for that one car, so keep watching']] },
-  4: { title: 'A signal for the other car', lines: [['🚐 The car', 'yields and shows "After you 🚗", addressed to the other driver'], ['🚗 Other driver', 'waits at the side street to merge in'], ['🚶 You', 'the signal is for the car, so decide whether it is an invitation for you too']] },
-  5: { title: 'A busy intersection', lines: [['🚌 Bus, 🚚 truck, 🚴 cyclist', 'ordinary traffic, each behaving differently'], ['🚑 Ambulance', 'siren on, so everyone pulls over for it'], ['🚶 You', 'cross amid the chaos when you judge it safe']] },
-  6: { title: 'Impatient drivers', lines: [['🚐 The cautious car', 'yields for you, correctly'], ['🚗 Impatient driver', 'tailgates, honks, and overtakes right across your path'], ['🚶 You', 'the car is safe, the others are not']] },
-  9: { title: 'Is the signal for you?', lines: [['🚐 The car', 'yields and shows 👋'], ['🚶 🚶 Other people', 'also waiting, and one of them may be who the signal is for'], ['🚶 You', 'decide whether the signal is meant for you']] },
-  walk: { title: 'A walk through town', lines: [['🚶 You', 'walk up the street with W and turn with the mouse. You stroll, you do not stay in one place'], ['🚐 An automated car', 'turns up at a few points along the way and reacts to where you are'], ['🤝 Crossing is your call', 'there are no marked crossings, so each time decide whether to cross or just carry on'], ['➡ Keep going', 'after each moment, walk on up the street and the next one comes to you']] },
+  1: { title: 'Scenario 1', lines: [['🚗 A car', 'is driving along the main road'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
+  2: { title: 'Scenario 2', lines: [['🚐 An automated car', 'is driving along the main road. It communicates with a light band, a windshield display and sound'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
+  3: { title: 'Scenario 3', lines: [['🚐 An automated car', 'is driving along the main road. It communicates with a light band, a windshield display and sound'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
+  4: { title: 'Scenario 4', lines: [['🚐 An automated car', 'is driving along the main road. It communicates with a light band, a windshield display and sound'], ['🚗 Another car', 'is waiting at the side street'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
+  5: { title: 'Scenario 5', lines: [['🚌 Traffic', 'buses, trucks and bikes share the street'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
+  6: { title: 'Scenario 6', lines: [['🚐 An automated car', 'is driving along the main road. It communicates with a light band, a windshield display and sound'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
+  9: { title: 'Scenario 9', lines: [['🚐 An automated car', 'is driving along the main road. It communicates with a light band, a windshield display and sound'], ['🚶 Other people', 'are waiting near the street'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
 };
 // Show the centered "who's who" briefing for a scenario; the run starts when
 // the user confirms (recapStart). Falls back to running directly if there is
@@ -71,9 +73,15 @@ const runner = new ScenarioRunner({
     setBlackout(false);             // restore vision for the dialog (audio-only study)
     sound.stopDistractor();
     sound.audioOnlyBoost = false;
-    const answers = await showConfidenceCheck(!!run?.crossed);
-    logger.completeRun(run, answers);
-    hudMsg.textContent = 'Logged. Pick a scenario and press Start for another run.';
+    // The confidence check can be switched off in the admin menu (e.g. when a
+    // focus-group session runs long and the probes happen verbally instead).
+    if ($('toggleConfidence').checked) {
+      const answers = await showConfidenceCheck(!!run?.crossed);
+      logger.completeRun(run, answers);
+    } else {
+      logger.completeRun(run, null);
+    }
+    hudMsg.textContent = 'Thank you. You can walk around, the next situation will start in a moment.';
   },
 });
 
@@ -218,11 +226,12 @@ function updateCamera(dt) {
 const $ = (id) => document.getElementById(id);
 
 // ---------- Scenario menu + study modes ----------
+// Participant-facing labels are number-only: the descriptive titles gave the
+// twist away ("The car missed a cyclist"). The researcher mapping lives in
+// DOCUMENTATION.md, not in the UI the group can see.
 const SCENARIO_LABELS = {
-  1: '1 · A car with no signals', 2: '2 · A car that lets you cross', 3: '3 · The car missed a cyclist',
-  4: '4 · A signal for the other car', 5: '5 · A busy intersection', 6: '6 · Impatient drivers',
-  9: '9 · Is the signal for you?',
-  walk: '★ A walk through town',
+  1: 'Scenario 1', 2: 'Scenario 2', 3: 'Scenario 3',
+  4: 'Scenario 4', 5: 'Scenario 5', 6: 'Scenario 6', 9: 'Scenario 9',
 };
 let selectedScenario = 1;
 let protocol = null; // { step, total } while the trust protocol is running
@@ -292,17 +301,26 @@ $('recapStart').addEventListener('click', () => {
 });
 $('recapCancel').addEventListener('click', () => {
   $('recap').classList.add('hidden');
-  $('scenarioMenu').classList.remove('hidden');
 });
 $('introNext').addEventListener('click', () => { if (introStep < INTRO_STEPS) { introStep++; renderIntroStep(); } });
 $('introBack').addEventListener('click', () => { if (introStep > 1) { introStep--; renderIntroStep(); } });
 $('introStart').addEventListener('click', () => {
   $('introDialog').classList.add('hidden');
-  $('scenarioMenu').classList.remove('hidden');
+  // The researcher starts the first situation from the admin menu; until then
+  // the participant can roam the idle scene to learn the controls.
 });
 
-$('menuBtn').addEventListener('click', () => $('scenarioMenu').classList.remove('hidden'));
-$('menuClose').addEventListener('click', () => $('scenarioMenu').classList.add('hidden'));
+// Scenario selection lives in the admin menu (researcher only): in a focus
+// group the audience watches the shared screen, so there is no public list
+// that could reveal what is coming. Buttons carry numbers only.
+document.querySelectorAll('#adminMenu [data-scn]').forEach((b) => {
+  b.addEventListener('click', () => {
+    selectedScenario = parseInt(b.dataset.scn, 10);
+    $('scenarioLabel').textContent = SCENARIO_LABELS[selectedScenario];
+    toggleAdmin(false);
+    startSelected();
+  });
+});
 
 // ---------- Admin menu (researcher controls + recording) ----------
 function toggleAdmin(force) {
@@ -312,16 +330,6 @@ function toggleAdmin(force) {
 }
 $('adminBtn').addEventListener('click', () => toggleAdmin());
 $('adminClose').addEventListener('click', () => toggleAdmin(false));
-document.querySelectorAll('.scenario-card').forEach((card) => {
-  card.addEventListener('click', () => {
-    const v = card.dataset.scenario;
-    selectedScenario = /^\d+$/.test(v) ? parseInt(v, 10) : v;
-    $('scenarioLabel').textContent = SCENARIO_LABELS[selectedScenario];
-    $('scenarioMenu').classList.add('hidden');
-    startSelected();
-  });
-});
-
 // Restart re-runs the current scenario from the beginning (no briefing).
 // Picking a scenario from the menu is the only way to start a new one.
 $('restartBtn').addEventListener('click', () => {
@@ -470,7 +478,8 @@ traffic.onHonk = (car) => {
 };
 traffic.onOvertake = (car) => {
   logger.event('aggressive_overtake_started', { kind: car.kind });
-  hudMsg.textContent = '⚠ The impatient driver is overtaking the yielding AV!';
+  // No HUD warning: the horn and the swerving car are the only cues, so the
+  // participant's own attention (not a caption) decides whether they notice.
 };
 
 // Collision / hard-brake events from the cyclist (scenario 3 edge case)
