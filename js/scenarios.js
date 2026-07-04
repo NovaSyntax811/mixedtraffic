@@ -70,19 +70,22 @@ export class ScenarioRunner {
       // Station spacing sets the walk's pacing: ~26 m between crossings keeps a
       // short breather between encounters without long empty stretches. Tune the
       // z values here after playtests.
+      // Intros only state what is visibly there; outros never pose the domain
+      // question (that is the moderator's job in the focus group). The `kind`
+      // is for the log only and must never reach the screen.
       this._walkStations = [
         { kind: 'uncertainty', z: 26, maxWait: 9,
           intro: 'A car is coming up the street. You are just walking here.',
-          outro: 'It stopped for you anyway. Did you actually want to cross, or did it misread you?' },
+          outro: 'The car drives on.' },
         { kind: 'targeted', z: 52, maxWait: 13,
           intro: 'Someone is waiting on the far pavement as a car approaches.',
-          outro: 'The car gave way. Was that signal for you, or for the person opposite?' },
+          outro: 'The car drives on.' },
         { kind: 'negotiation', z: 78, maxWait: 13,
-          intro: 'A car approaches, with an impatient one close behind it.',
-          outro: 'The first car gave way, but the driver behind would not wait.' },
+          intro: 'Two cars are coming up the street.',
+          outro: 'The cars drive on.' },
         { kind: 'scalability', z: 104, maxWait: 14,
           intro: 'People are waiting on both sides of the street as a car comes.',
-          outro: 'One car, several people. Who was its signal really meant for?' },
+          outro: 'The car drives on.' },
       ];
       this._walkIndex = 0;
       this._walkPhase = 'walking';
@@ -558,7 +561,7 @@ export class ScenarioRunner {
     this.av.setBandState('neutral', true);
     this.av.setDisplay('off');
     this.logger.event('walk_station_start', { kind: st.kind, z: st.z });
-    this.onPhase?.(st.kind);
+    this.onPhase?.('encounter'); // never the domain name — the phase label is on screen
     this.onMessage?.(st.intro);
   }
 
@@ -667,7 +670,7 @@ export class ScenarioRunner {
         patience: 1.8, safeOvertake: true,
       });
       if (imp) { imp.mesh.position.set(-1.9, 0, this.av.group.position.z - 16); imp.speed = this.approachSpeed; }
-      this.onMessage?.('The car yields for you, but the one behind is not waiting.');
+      // No HUD line: the horn and the swerve are the cues, not a caption.
     }
   }
 

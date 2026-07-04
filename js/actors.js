@@ -636,10 +636,12 @@ export class MergingCar {
   // (z=1.9) into the intersection, a quarter-turn left, then north in the AV's
   // lane (x=-1.9). (The old single diagonal arc cut across the NW sidewalk.)
   update(dt, obstacles = []) {
+    this.moving = false; // true only in frames where the car actually advances
     if (this.state !== 'merging') return;
     const ry = this.group.rotation.y;
     const fwd = new THREE.Vector3(Math.sin(ry), 0, Math.cos(ry));
     if (blockingObstacle(this.group.position, fwd, obstacles, 5, 1.0)) return;
+    this.moving = true;
 
     const pos = this.group.position;
     const speed = 6;

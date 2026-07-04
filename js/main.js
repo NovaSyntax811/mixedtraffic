@@ -2,10 +2,10 @@
 import * as THREE from 'three';
 import { createScene, LAYOUT } from './scene.js?v=47';
 import { AV } from './vehicle.js?v=36';
-import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=53';
+import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=55';
 import { EHMISound } from './audio.js?v=17';
 import { BehaviorLogger, showConfidenceCheck } from './logger.js?v=15';
-import { ScenarioRunner } from './scenarios.js?v=54';
+import { ScenarioRunner } from './scenarios.js?v=56';
 
 const { scene, camera, renderer, composer, setTimeOfDay } = createScene();
 
@@ -13,13 +13,14 @@ const { scene, camera, renderer, composer, setTimeOfDay } = createScene();
 // distinct. Night is reserved for the audio-only study (screen is blacked
 // out anyway); the eHMI glow reads best at dusk for the mixed-traffic scene.
 const SCENARIO_LIGHTING = {
-  1: 'day',        // Baseline — clear daylight, easy to read
-  2: 'afternoon',  // Pedestrian crossing
-  3: 'overcast',   // Edge case — flat, slightly tense
-  4: 'day',        // Merge
-  5: 'dusk',       // Mixed traffic — emergency lights pop
-  6: 'afternoon',  // Aggressive drivers
-  9: 'afternoon',  // Ambiguous signal
+  1: 'day',          // Baseline — clear daylight, easy to read
+  2: 'afternoon',    // Pedestrian crossing
+  3: 'overcast',     // Edge case — flat, slightly tense
+  4: 'day',          // Merge
+  5: 'dusk',         // Mixed traffic — emergency lights pop
+  6: 'afternoon',    // Aggressive drivers
+  9: 'afternoon',    // Ambiguous signal
+  walk: 'afternoon', // Free-roam finale — neutral daylight
 };
 
 // Briefing shown before each run. DELIBERATELY UNBIASED for the study: each
@@ -35,6 +36,9 @@ const SCENARIO_RECAP = {
   5: { title: 'Scenario 5', lines: [['🚌 Traffic', 'buses, trucks and bikes share the street'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
   6: { title: 'Scenario 6', lines: [['🚐 An automated car', 'is driving along the main road. It communicates with a light band, a windshield display and sound'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
   9: { title: 'Scenario 9', lines: [['🚐 An automated car', 'is driving along the main road. It communicates with a light band, a windshield display and sound'], ['🚶 Other people', 'are waiting near the street'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
+  // Free-roam finale: instructions only, no hint that situations are staged
+  // along the way or which themes they carry.
+  walk: { title: 'Free walk', lines: [['🚶 You', 'take a walk up the street: W to walk where you look, mouse to turn'], ['🛣 The street', 'everyday traffic may pass while you walk'], ['🤝 Crossing is your call', 'cross the street whenever you choose, or simply keep walking']] },
 };
 // Show the centered "who's who" briefing for a scenario; the run starts when
 // the user confirms (recapStart). Falls back to running directly if there is
@@ -232,6 +236,7 @@ const $ = (id) => document.getElementById(id);
 const SCENARIO_LABELS = {
   1: 'Scenario 1', 2: 'Scenario 2', 3: 'Scenario 3',
   4: 'Scenario 4', 5: 'Scenario 5', 6: 'Scenario 6', 9: 'Scenario 9',
+  walk: 'Free walk',
 };
 let selectedScenario = 1;
 let protocol = null; // { step, total } while the trust protocol is running
@@ -315,11 +320,21 @@ $('introStart').addEventListener('click', () => {
 // that could reveal what is coming. Buttons carry numbers only.
 document.querySelectorAll('#adminMenu [data-scn]').forEach((b) => {
   b.addEventListener('click', () => {
-    selectedScenario = parseInt(b.dataset.scn, 10);
+    const v = b.dataset.scn;
+    selectedScenario = /^\d+$/.test(v) ? parseInt(v, 10) : v; // 'walk' stays a string id
     $('scenarioLabel').textContent = SCENARIO_LABELS[selectedScenario];
     toggleAdmin(false);
     startSelected();
   });
+});
+
+// Moderator control: end the current scenario immediately (back to idle, the
+// participant can roam) without starting a new one.
+$('stopBtn').addEventListener('click', () => {
+  setBlackout(false);
+  sound.stopDistractor();
+  runner.reset();
+  toggleAdmin(false);
 });
 
 // ---------- Admin menu (researcher controls + recording) ----------
@@ -395,7 +410,9 @@ function checkPedestrianCollisions() {
   const boxes = [];
   if (av.group.visible) boxes.push({ name: 'AV', pos: av.group.position, rotY: av.group.rotation.y, hw: 1.05, hl: 2.25, speed: Math.abs(av.speed) });
   if (humanCar.group.visible) boxes.push({ name: 'car', pos: humanCar.group.position, rotY: humanCar.group.rotation.y, hw: 0.95, hl: 2.05, speed: Math.abs(humanCar.speed) });
-  if (mergingCar.group.visible) boxes.push({ name: 'car', pos: mergingCar.group.position, rotY: mergingCar.group.rotation.y, hw: 0.95, hl: 2.05, speed: mergingCar.state === 'merging' ? 3 : 0 });
+  // Speed counts only when the merging car actually advances this frame: a
+  // merging car that has braked for someone must block them, not "hit" them.
+  if (mergingCar.group.visible) boxes.push({ name: 'car', pos: mergingCar.group.position, rotY: mergingCar.group.rotation.y, hw: 0.95, hl: 2.05, speed: mergingCar.state === 'merging' && mergingCar.moving ? 3 : 0 });
   for (const c of traffic.cars) boxes.push({ name: c.kind ?? 'car', pos: c.mesh.position, rotY: c.mesh.rotation.y, hw: c.hw ?? 0.95, hl: c.hl ?? 2.05, speed: Math.abs(c.speed) });
 
   for (const v of boxes) {
@@ -428,7 +445,7 @@ function checkVehicleCollisions() {
   const bodies = [];
   if (av.group.visible) bodies.push({ name: 'AV', g: av.group, hl: 2.05, speed: Math.abs(av.speed), stop: () => { av.targetSpeed = 0; av.speed = 0; } });
   if (humanCar.group.visible) bodies.push({ name: 'car', g: humanCar.group, hl: 2.05, speed: Math.abs(humanCar.speed), stop: () => { humanCar.targetSpeed = 0; humanCar.speed = 0; } });
-  if (mergingCar.group.visible) bodies.push({ name: 'merging car', g: mergingCar.group, hl: 2.05, speed: mergingCar.state === 'merging' ? 3 : 0, stop: () => { mergingCar.state = 'waiting'; } });
+  if (mergingCar.group.visible) bodies.push({ name: 'merging car', g: mergingCar.group, hl: 2.05, speed: mergingCar.state === 'merging' && mergingCar.moving ? 3 : 0, stop: () => { mergingCar.state = 'waiting'; } });
   // Scripted aggressive cars (honking tailgater / oncoming) perform a
   // choreographed near-miss overtake into the oncoming lane — that is the
   // point of the scenario. They must not register as a car–car accident

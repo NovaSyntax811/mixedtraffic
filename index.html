@@ -101,27 +101,34 @@
   <!-- ===== Admin menu (researcher controls; opened with the ⚙ button or "O") =====
        Scenario selection lives HERE so participants and a watching focus group
        never see a list of what is coming. Buttons show numbers only; the
-       number-to-content mapping is documented in DOCUMENTATION.md:
-       1 baseline (no eHMI) · 3 unnoticed cyclist · 4 signal to the other car ·
-       6 impatient driver · 9 several waiting people — extras: 2 plain yield · 5 busy street -->
+       number-to-content mapping is documented in DOCUMENTATION.md.
+       Study set, one per topic: 1 baseline (benefit) · 3 unnoticed cyclist
+       (overtrust) · 6 impatient driver (negotiation) · 9 several waiting people
+       (targeted pro-sociality) · Free roam = continuous walk, run LAST (its
+       stations add uncertainty and scalability).
+       Extras: 2 plain yield (practice) · 4 signal to the other car · 5 busy street -->
 
   <div id="adminMenu" class="modal hidden">
     <div class="modal-box admin-box">
       <h3>Admin</h3>
 
       <div class="admin-group">
-        <span class="admin-label">Start scenario (study set)</span>
+        <span class="admin-label">Study set (one per topic, then free roam)</span>
         <div class="admin-row">
           <button data-scn="1">1</button>
           <button data-scn="3">3</button>
-          <button data-scn="4">4</button>
           <button data-scn="6">6</button>
           <button data-scn="9">9</button>
+          <button data-scn="walk">Free roam</button>
         </div>
         <span class="admin-label">Extras (demo only)</span>
         <div class="admin-row">
           <button data-scn="2">2</button>
+          <button data-scn="4">4</button>
           <button data-scn="5">5</button>
+        </div>
+        <div class="admin-row">
+          <button id="stopBtn">⏹ Stop current scenario</button>
         </div>
       </div>
 
@@ -217,6 +224,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=54"></script>
+  <script type="module" src="js/main.js?v=56"></script>
 </body>
 </html>
