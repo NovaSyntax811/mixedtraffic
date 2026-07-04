@@ -35,9 +35,12 @@ The participant screen is deliberately minimal: the scenario label ("Scenario
 button. Everything else lives in the **admin menu**, opened with the gear
 button or the **O** key, closed with Close, O, or Escape:
 
-- **Start scenario**: number-only buttons. Study set: 1, 3, 4, 6, 9. Extras
-  (demo only): 2, 5. There is no participant-facing scenario list, so a
-  watching focus group never sees what is coming.
+- **Start scenario**: number-only buttons. Study set, one per topic: 1, 3, 6,
+  9, then **Free roam** as the finale. Extras (demo only): 2, 4, 5. There is
+  no participant-facing scenario list, so a watching focus group never sees
+  what is coming.
+- **Stop current scenario**: ends the running scenario back to idle without
+  starting a new one (moderator control between rounds).
 - **Camera** views: Pedestrian (first person), Cyclist, Observer, Cinematic.
 - **AV speed**, **Volume**, **Light band brightness** sliders.
 - Toggles: ambient traffic, cyclist actor, merging car actor, and
@@ -54,19 +57,24 @@ current scenario without the briefing.
 
 The UI shows only numbers. Mapping:
 
-| # | Content | Domain |
+| # | Content | Topic |
 |---|---|---|
-| 1 | Human car, no eHMI at all; only the implicit motion cue | Baseline |
+| 1 | Human car, no eHMI at all; only the implicit motion cue | Baseline / benefit |
 | 3 | Full eHMI yield; an unnoticed cyclist overtakes the stopped AV and does not brake | Overtrust |
-| 4 | The AV yields and shows "After you" to a car merging from the side street | Targeted pro-sociality (vehicle) |
 | 6 | The AV yields correctly; the driver behind honks and overtakes across the crossing | Negotiation |
-| 9 | The AV yields while several people wait; the signal addresses the person opposite | Targeted pro-sociality (who?) |
+| 9 | The AV yields while several people wait; the signal addresses the person opposite | Targeted pro-sociality |
+| Free roam | Continuous walk up the street; four staged encounters react to where the player is | Finale; its stations add uncertainty and scalability |
 | 2 | Plain full eHMI yield | Extra: demo and practice |
+| 4 | The AV yields and shows "After you" to a car merging from the side street | Extra: vehicle-directed signal |
 | 5 | Busy street: bus, truck, cyclist, ambulance everyone pulls over for | Extra: excluded from the study |
 
-The continuous walk ("A walk through town") is no longer offered in the UI;
-its code remains in `js/scenarios.js` and can be launched from the console via
-`__sim.beginRun('walk')` for demos.
+The free roam is meant to be run last: after the four single scenarios the
+participant strolls up the street and meets four position-triggered
+encounters (a stop although they were only passing, a person waiting
+opposite, an overtaking driver behind a yielding car, people on both sides).
+Its texts and the phase label are debiased like everything else, and the
+overtaking driver there brakes for people in the road, so a collision cannot
+abort the walk.
 
 ## Debiasing rules (implemented)
 

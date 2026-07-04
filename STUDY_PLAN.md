@@ -23,10 +23,11 @@ Stage 2: Online quantitative study (browser)
 |---|---|---|
 | 1 | Human car, no eHMI (baseline) | Benefit / trust calibration (compare with eHMI runs) |
 | 3 | eHMI yield, unnoticed cyclist overtakes | Overtrust |
-| 4 | eHMI signals "After you" to a merging car | Targeted pro-sociality (vehicle-directed) |
 | 6 | eHMI yield, impatient driver behind overtakes | Negotiation |
 | 9 | eHMI yield with several waiting people | Targeted pro-sociality (who is addressed?) |
+| Free roam | Continuous walk, four staged encounters reacting to the player | Finale; adds uncertainty and scalability |
 | 2 (extra) | Plain eHMI yield | Demo / practice only |
+| 4 (extra) | eHMI signals "After you" to a merging car | Targeted pro-sociality (vehicle-directed), optional |
 | 5 (extra) | Busy street with ambulance | Excluded from the study per supervisor |
 
 Debiasing rules baked into the prototype: number-only labels, identical
@@ -54,13 +55,17 @@ no list of upcoming situations is ever visible.
    discussion starter (the player answers aloud); it can be switched off in
    the admin menu if the session runs long. Replays are cheap: hand the mouse
    to a disagreeing watcher and restart.
-   - Suggested order: 1 first (calibrates "no signal"), then 9, 6, 3, with 4
-     if time allows.
+   - Suggested order: 1 first (calibrates "no signal"), then 9, 6, 3, and the
+     free roam as the finale (one player walks the whole street; its staged
+     encounters bring uncertainty and scalability into the discussion).
    - One probe per scenario, domain never named:
      - After 9: "Who was the car letting cross?"
      - After 6: "Who had the right to go, and who decided?"
      - After 3: "Would you have checked the road yourself? Why?"
      - After 1 vs the rest: "What was different about deciding here?"
+     - After the free roam: "The car stopped although you were only walking
+       by. How did that feel?" and "With people on both sides, who was the
+       signal for?"
 4. **Closing (10 min).** "If you designed the car's signals, what would you
    change?" plus the pressure probe: did the car stopping feel like a kind
    gesture or like pressure to cross?
@@ -76,10 +81,10 @@ data comes from Stage 2.
 
 1. Consent and demographics (age, walking habits, prior AV exposure).
 2. Intro and one practice run (scenario 2, excluded from analysis).
-3. The five study scenarios in randomized order (full random or Latin square,
-   decision pending). Per run: automatic behaviour logging plus the confidence
-   check with one or two domain items, for example "Who was the signal meant
-   for?" after 9 and 4.
+3. The four single scenarios in randomized order (full random or Latin
+   square, decision pending), then the free roam last for everyone. Per run:
+   automatic behaviour logging plus the confidence check with one or two
+   domain items, for example "Who was the signal meant for?" after 9.
 4. Post questionnaires: a validated trust scale (Automotive UI proceedings)
    and the pro-sociality scale from the paper the supervisor shared.
 5. Submit.
@@ -104,5 +109,7 @@ Technical prerequisites before Stage 2 (not yet built):
 ## Open decisions
 
 - Randomization scheme for Stage 2 (full random vs Latin square).
-- Whether scenario 4 is core or optional in both stages.
 - Per-run vs end-of-session questionnaire depth for Stage 2.
+
+Resolved: scenario 4 is an extra (available in the admin menu, not part of
+the core set); the free roam runs last for everyone.
