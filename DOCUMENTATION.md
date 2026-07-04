@@ -36,8 +36,9 @@ button. Everything else lives in the **admin menu**, opened with the gear
 button or the **O** key, closed with Close, O, or Escape:
 
 - **Start scenario**: number-only buttons. Study set, one per topic: 1, 3, 6,
-  9, then **Free roam** as the finale. Extras (demo only): 2, 4, 5. There is
-  no participant-facing scenario list, so a watching focus group never sees
+  9, then **Free roam** as the finale. Extras (demo only): 2, 4, 5.
+  A public **☰ Scenarios** menu also exists for self-guided use; its cards are
+  debiased (neutral titles, one shared description), so neither path reveals
   what is coming.
 - **Stop current scenario**: ends the running scenario back to idle without
   starting a new one (moderator control between rounds).
@@ -68,11 +69,16 @@ The UI shows only numbers. Mapping:
 | 4 | The AV yields and shows "After you" to a car merging from the side street | Extra: vehicle-directed signal |
 | 5 | Busy street: bus, truck, cyclist, ambulance everyone pulls over for | Extra: excluded from the study |
 
-The free roam is meant to be run last: after the four single scenarios the
-participant strolls up the street and meets four position-triggered
-encounters (a stop although they were only passing, a person waiting
-opposite, an overtaking driver behind a yielding car, people on both sides).
-Its texts and the phase label are debiased like everything else, and the
+The free roam is meant to be run last: the participant takes a walk through a
+larger town (three junctions, distinct districts: cool south, warm brick
+middle with a leafy corner, light modern north with a bus stop). Between
+encounters a pulsing **glowing field** appears on BOTH pavements at the next
+spot (trigger logic adapted from Julius's branch); stepping into either one
+starts the next situation, so after crossing the participant can carry on up
+whichever side they like. The four encounters: a stop although they were only
+passing, a person waiting opposite, an overtaking driver behind a yielding
+car, people on both sides. Texts and the phase label are debiased like
+everything else, reactive stops never rest inside a junction, and the
 overtaking driver there brakes for people in the road, so a collision cannot
 abort the walk.
 

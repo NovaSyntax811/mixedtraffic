@@ -1,6 +1,6 @@
 // Scenario state machines, following the interaction arc:
 // Detection -> Decision -> Action (signal) -> Acknowledgment -> Outcome
-import { LAYOUT } from './scene.js?v=47';
+import { LAYOUT } from './scene.js?v=48';
 
 const ZEBRA = LAYOUT.zebraZ;
 const PREROLL = 5;       // short opening hold: the car waits a few seconds so the
@@ -45,6 +45,7 @@ export class ScenarioRunner {
     this.quietEdge = false;
     this._stillTimer = 0;
     this._dynamicStopZ = null;
+    this.walkAwaitZ = null; // z of the glowing field the walk is waiting at (null = none)
     this.setPhase('idle', 'You can walk around freely. The next situation will start in a moment.');
   }
 
@@ -73,17 +74,21 @@ export class ScenarioRunner {
       // Intros only state what is visibly there; outros never pose the domain
       // question (that is the moderator's job in the focus group). The `kind`
       // is for the log only and must never reach the screen.
+      // Stations sit in different districts of the town (mid-block south, past
+      // the leafy junction B, warm mid-block, past the bus-stop junction C).
+      // minStop keeps a reactive stop from resting the car inside a junction
+      // (B spans z 40..48, C spans 88..96; nose >= edge + 5 clears the body).
       this._walkStations = [
         { kind: 'uncertainty', z: 26, maxWait: 9,
           intro: 'A car is coming up the street. You are just walking here.',
           outro: 'The car drives on.' },
-        { kind: 'targeted', z: 52, maxWait: 13,
+        { kind: 'targeted', z: 56, maxWait: 13, minStop: 53,
           intro: 'Someone is waiting on the far pavement as a car approaches.',
           outro: 'The car drives on.' },
         { kind: 'negotiation', z: 78, maxWait: 13,
           intro: 'Two cars are coming up the street.',
           outro: 'The cars drive on.' },
-        { kind: 'scalability', z: 104, maxWait: 14,
+        { kind: 'scalability', z: 104, maxWait: 14, minStop: 101,
           intro: 'People are waiting on both sides of the street as a car comes.',
           outro: 'The car drives on.' },
       ];
@@ -92,7 +97,7 @@ export class ScenarioRunner {
       this._stationPhase = null;
       this._walkHintShown = false;
       this._walkDone = false;
-      this.setPhase('walking', 'Walk up the street with W (turn with the mouse). Keep going, situations come to you. Cross whenever you choose.');
+      this.setPhase('walking', 'Take a walk through town (W to walk where you look, mouse to turn). Walk into the glowing field on the pavement to begin.');
       return;
     }
 
@@ -518,14 +523,13 @@ export class ScenarioRunner {
   // actually is, plus a little station-specific staging (a person opposite, an
   // impatient overtaker, people on both sides).
   _updateWalk(dt) {
-    const p = this.pedestrian.group.position;
-
     if (this._walkPhase === 'walking') {
       this.av.group.visible = false; // no car between encounters
       const st = this._walkStations[this._walkIndex];
       if (!st) {
         if (!this._walkDone) {
           this._walkDone = true;
+          this.walkAwaitZ = null;
           this.logger.event('walk_complete');
           this.onMessage?.('You have reached the end of the walk. Thanks for coming along.');
           this._finish();
@@ -533,11 +537,24 @@ export class ScenarioRunner {
         return;
       }
       this.onPhase?.('walking');
-      if (p.z > st.z - 22) { this._startStation(st); return; }
+      // Between encounters the walk waits at a glowing field on the pavement
+      // (rendered by main.js on BOTH kerbs, a few metres before the crossing
+      // point, so the player can arrive on either side). main.js calls
+      // walkEnterZone() when the player steps into one.
+      this.walkAwaitZ = st.z - 4;
       return;
     }
 
     this._updateStation(dt, this._walkStations[this._walkIndex]);
+  }
+
+  // Player stepped into the glowing field: begin this station's encounter.
+  walkEnterZone() {
+    if (this.scenario !== 'walk' || !this.running || this._walkPhase !== 'walking') return;
+    const st = this._walkStations[this._walkIndex];
+    if (!st) return;
+    this.walkAwaitZ = null;
+    this._startStation(st);
   }
 
   _startStation(st) {
@@ -575,7 +592,8 @@ export class ScenarioRunner {
     const besideRoad = Math.abs(p.x) > LAYOUT.roadWidth / 2 - 1.0;
     const waitingHere = besideRoad && !this.pedestrian.moving && Math.abs(p.z - st.z) < 14;
     const base = waitingHere ? p.z - 1.5 : st.z - STOP_BEFORE; // ~1 m clearance after braking settles
-    return Math.min(base, st.z + 6);
+    // minStop keeps the car's body clear of the junction just south of this station
+    return Math.max(st.minStop ?? -Infinity, Math.min(base, st.z + 6));
   }
 
   _updateStation(dt, st) {
@@ -629,7 +647,7 @@ export class ScenarioRunner {
           this._walkIndex += 1;
           this._stationPhase = null;
           if (this._walkStations[this._walkIndex]) {
-            this.onMessage?.('The car drives on. Keep walking up the street, the next moment is ahead.');
+            this.onMessage?.('Walk on to the next glowing field, on whichever side of the street you like.');
           }
         }
         break;

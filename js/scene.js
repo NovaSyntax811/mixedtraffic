@@ -157,6 +157,26 @@ function buildEnvironment(scene) {
   for (const sx of [-1, 1]) addLine(0.16, 300, sx * (roadWidth / 2 - 0.2), 0);  // main road edges
   for (const sz of [-1, 1]) addLine(220, 0.16, 0, sz * (roadWidth / 2 - 0.2));  // side road edges
 
+  // Two more cross streets up the main road (junction B at z=44, junction C at
+  // z=92), so the free-roam walk passes several distinct junctions instead of
+  // one long corridor. Purely environmental: walk traffic never uses them.
+  const CROSS_STREETS = [44, 92];
+  for (const cz of CROSS_STREETS) {
+    const road = new THREE.Mesh(new THREE.PlaneGeometry(300, roadWidth), asphaltSide);
+    road.rotation.x = -Math.PI / 2;
+    road.position.set(0, 0.006, cz);
+    road.receiveShadow = true;
+    scene.add(road);
+    for (const sz of [-1, 1]) {
+      const sw2 = new THREE.Mesh(new THREE.PlaneGeometry(300, sidewalk), pavement);
+      sw2.rotation.x = -Math.PI / 2;
+      sw2.position.set(0, 0.002, cz + sz * (roadWidth / 2 + sidewalk / 2));
+      sw2.receiveShadow = true;
+      scene.add(sw2);
+      addLine(300, 0.16, 0, cz + sz * (roadWidth / 2 - 0.2));
+    }
+  }
+
   // No painted crossing here on purpose: the pedestrian has no legal right of
   // way, so when the AV stops it is yielding by choice (prosocial), not because
   // a zebra obliges it. (zebraZ is kept only as the internal crossing point.)
@@ -164,33 +184,88 @@ function buildEnvironment(scene) {
   // Center lane dashes on the main road
   const dashMat = new THREE.MeshStandardMaterial({ color: 0x9a9580, roughness: 0.85 });
   for (let z = -140; z <= 140; z += 6) {
-    if (Math.abs(z) < roadWidth / 2 + 2) continue; // skip intersection
+    if (Math.abs(z) < roadWidth / 2 + 2) continue; // skip origin intersection
+    if (CROSS_STREETS.some((cz) => Math.abs(z - cz) < roadWidth / 2 + 2)) continue; // skip junctions B and C
     const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 2.4), dashMat);
     dash.rotation.x = -Math.PI / 2;
     dash.position.set(0, 0.013, z);
     scene.add(dash);
   }
 
-  // Low-poly buildings around the intersection corners
-  const palette = [0x55617d, 0x6a5d74, 0x726a5e, 0x4f6a76, 0x5e4f66];
+  // Low-poly buildings along the corridor. Three palette "districts" (cool
+  // south, warm brick middle, light modern north) so each stretch of the walk
+  // reads as a different part of town; heights vary by district too.
+  const palettes = [
+    [0x55617d, 0x6a5d74, 0x726a5e, 0x4f6a76, 0x5e4f66], // south of junction B: cool blues
+    [0x7d5a48, 0x8a6a50, 0x6e4f42, 0x94785e, 0x71503f], // between B and C: warm brick
+    [0x9aa3ad, 0x8793a1, 0xa8adb5, 0x76828e, 0x9fa8b3], // north of C: light modern
+  ];
+  const paletteFor = (z) => palettes[z < 40 ? 0 : z < 88 ? 1 : 2];
   let seed = 7;
   const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   for (const cx of [-1, 1]) {
     for (const cz of [-1, 1]) {
       for (let i = 0; i < 10; i++) { // rows extended up the corridor for the walk
-        const w = 6 + rand() * 6, d = 6 + rand() * 6, h = 6 + rand() * 16;
+        const w = 6 + rand() * 6, d = 6 + rand() * 6;
+        const off = roadWidth / 2 + sidewalk + 3;
+        const bx = cx * (off + w / 2 + rand() * 14);
+        const bz = cz * (off + d / 2 + i * 11 + rand() * 4);
+        const hPick = rand();
+        // keep clear of the cross streets (junctions B and C) and their pavements
+        if (CROSS_STREETS.some((sz) => Math.abs(bz - sz) < d / 2 + roadWidth / 2 + sidewalk + 1)) continue;
+        const pal = paletteFor(bz);
+        // northern district is a bit taller (offices), middle stays low (old town)
+        const h = bz > 88 ? 10 + hPick * 18 : bz > 40 ? 5 + hPick * 9 : 6 + hPick * 16;
         const b = new THREE.Mesh(
           new THREE.BoxGeometry(w, h, d),
-          new THREE.MeshStandardMaterial({ color: palette[Math.floor(rand() * palette.length)], roughness: 0.85 })
+          new THREE.MeshStandardMaterial({ color: pal[Math.floor(rand() * pal.length)], roughness: 0.85 })
         );
-        const off = roadWidth / 2 + sidewalk + 3;
-        b.position.set(cx * (off + w / 2 + rand() * 14), h / 2, cz * (off + d / 2 + i * 11 + rand() * 4));
+        b.position.set(bx, h / 2, bz);
         b.castShadow = b.receiveShadow = true;
         scene.add(b);
         addWindows(scene, b, w, h, d, rand, litWindows);
       }
     }
   }
+
+  // Junction character props, so the walk's stops feel like different places:
+  // greenery around junction B (small park corner), a bus stop at junction C.
+  const addTree = (x, z, s = 1) => {
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12 * s, 0.17 * s, 1.7 * s, 6),
+      new THREE.MeshStandardMaterial({ color: 0x5a4632, roughness: 0.9 }));
+    trunk.position.set(x, 0.85 * s, z);
+    trunk.castShadow = true;
+    scene.add(trunk);
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(1.15 * s, 10, 8),
+      new THREE.MeshStandardMaterial({ color: 0x3f6b34, roughness: 0.95 }));
+    ball.position.set(x, 2.25 * s, z);
+    ball.castShadow = true;
+    scene.add(ball);
+  };
+  // Park corner at junction B (west side) + street trees on the east
+  addTree(-7.2, 36.5, 1.2); addTree(-8.6, 39, 0.9); addTree(-7.0, 51, 1.1); addTree(-9.0, 53, 0.8);
+  addTree(7.0, 38, 1.0); addTree(7.2, 50.5, 1.2);
+  // A few mid-block trees so the warm district reads greener
+  addTree(-7.0, 66, 1.0); addTree(7.1, 72, 0.9);
+  // Bus stop at junction C (east side, north corner): bench + pole with panel
+  const benchMat = new THREE.MeshStandardMaterial({ color: 0x6a4f36, roughness: 0.85 });
+  const bench = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.1, 0.5), benchMat);
+  bench.position.set(6.9, 0.5, 98);
+  bench.castShadow = true;
+  scene.add(bench);
+  for (const bx of [-0.7, 0.7]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.5, 0.4), benchMat);
+    leg.position.set(6.9 + bx, 0.25, 98);
+    scene.add(leg);
+  }
+  const stopPole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.8, 8),
+    new THREE.MeshStandardMaterial({ color: 0x9aa0aa, roughness: 0.55, metalness: 0.4 }));
+  stopPole.position.set(6.4, 1.4, 99.4);
+  scene.add(stopPole);
+  const stopSign = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.5),
+    new THREE.MeshStandardMaterial({ color: 0xf2c40a, roughness: 0.5, side: THREE.DoubleSide }));
+  stopSign.position.set(6.4, 2.6, 99.34);
+  scene.add(stopSign);
 
   // Street lamps: a pair by the origin crossing, plus a staggered line of them
   // up the main street so the walk corridor reads as a real, lit street.

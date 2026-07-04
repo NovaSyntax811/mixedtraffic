@@ -1,11 +1,11 @@
 // Entry point: wires scene, actors, audio, scenarios, cameras, input, UI, logging.
 import * as THREE from 'three';
-import { createScene, LAYOUT } from './scene.js?v=47';
+import { createScene, LAYOUT } from './scene.js?v=48';
 import { AV } from './vehicle.js?v=36';
 import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=55';
 import { EHMISound } from './audio.js?v=17';
 import { BehaviorLogger, showConfidenceCheck } from './logger.js?v=15';
-import { ScenarioRunner } from './scenarios.js?v=56';
+import { ScenarioRunner } from './scenarios.js?v=57';
 
 const { scene, camera, renderer, composer, setTimeOfDay } = createScene();
 
@@ -38,7 +38,7 @@ const SCENARIO_RECAP = {
   9: { title: 'Scenario 9', lines: [['🚐 An automated car', 'is driving along the main road. It communicates with a light band, a windshield display and sound'], ['🚶 Other people', 'are waiting near the street'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
   // Free-roam finale: instructions only, no hint that situations are staged
   // along the way or which themes they carry.
-  walk: { title: 'Free walk', lines: [['🚶 You', 'take a walk up the street: W to walk where you look, mouse to turn'], ['🛣 The street', 'everyday traffic may pass while you walk'], ['🤝 Crossing is your call', 'cross the street whenever you choose, or simply keep walking']] },
+  walk: { title: 'Free walk', lines: [['🚶 You', 'take a walk through town: W to walk where you look, mouse to turn'], ['🟦 Glowing fields', 'mark where your walk continues; step into one and see what happens'], ['🤝 Crossing is your call', 'cross the street whenever you choose, on whichever side you like']] },
 };
 // Show the centered "who's who" briefing for a scenario; the run starts when
 // the user confirms (recapStart). Falls back to running directly if there is
@@ -306,18 +306,31 @@ $('recapStart').addEventListener('click', () => {
 });
 $('recapCancel').addEventListener('click', () => {
   $('recap').classList.add('hidden');
+  $('scenarioMenu').classList.remove('hidden');
 });
 $('introNext').addEventListener('click', () => { if (introStep < INTRO_STEPS) { introStep++; renderIntroStep(); } });
 $('introBack').addEventListener('click', () => { if (introStep > 1) { introStep--; renderIntroStep(); } });
 $('introStart').addEventListener('click', () => {
   $('introDialog').classList.add('hidden');
-  // The researcher starts the first situation from the admin menu; until then
-  // the participant can roam the idle scene to learn the controls.
+  $('scenarioMenu').classList.remove('hidden');
 });
 
-// Scenario selection lives in the admin menu (researcher only): in a focus
-// group the audience watches the shared screen, so there is no public list
-// that could reveal what is coming. Buttons carry numbers only.
+// Public scenario menu (☰). Its cards are as debiased as everything else:
+// neutral titles, one shared description for the study scenarios, nothing
+// that reveals what will happen.
+$('menuBtn').addEventListener('click', () => $('scenarioMenu').classList.remove('hidden'));
+$('menuClose').addEventListener('click', () => $('scenarioMenu').classList.add('hidden'));
+document.querySelectorAll('#scenarioMenu .scenario-card').forEach((card) => {
+  card.addEventListener('click', () => {
+    const v = card.dataset.scenario;
+    selectedScenario = /^\d+$/.test(v) ? parseInt(v, 10) : v;
+    $('scenarioLabel').textContent = SCENARIO_LABELS[selectedScenario];
+    $('scenarioMenu').classList.add('hidden');
+    startSelected();
+  });
+});
+
+// The admin menu keeps its own start buttons for moderated sessions.
 document.querySelectorAll('#adminMenu [data-scn]').forEach((b) => {
   b.addEventListener('click', () => {
     const v = b.dataset.scn;
@@ -521,6 +534,39 @@ const ROAD_HALF = LAYOUT.roadWidth / 2;
 let sirenWasActive = false;
 let lastLookingAtVehicle = false;
 
+// ---------- Free-roam trigger fields ----------
+// Logic adapted from Julius's branch: between encounters a pulsing field marks
+// where to go next; stepping into it starts the next situation. One field on
+// EACH pavement, so after crossing at a station the player can carry on up
+// whichever side they ended on (side changes stay supported).
+function buildTriggerZone(x) {
+  const g = new THREE.Group();
+  const fillMat = new THREE.MeshBasicMaterial({ color: 0x00d8ff, transparent: true, opacity: 0.3, depthWrite: false });
+  const fill = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 3.0), fillMat);
+  fill.rotation.x = -Math.PI / 2;
+  fill.position.y = 0.01;
+  g.add(fill);
+  const borderPts = [
+    new THREE.Vector3(-1.3, 0, -1.5), new THREE.Vector3(1.3, 0, -1.5),
+    new THREE.Vector3(1.3, 0, 1.5), new THREE.Vector3(-1.3, 0, 1.5),
+    new THREE.Vector3(-1.3, 0, -1.5),
+  ];
+  const borderMat = new THREE.LineBasicMaterial({ color: 0x00d8ff });
+  const border = new THREE.Line(new THREE.BufferGeometry().setFromPoints(borderPts), borderMat);
+  border.position.y = 0.02;
+  g.add(border);
+  const zonePt = new THREE.PointLight(0x00d8ff, 0, 7, 2);
+  zonePt.position.set(0, 1.5, 0);
+  g.add(zonePt);
+  g.position.set(x, 0, 0);
+  g.visible = false;
+  scene.add(g);
+  return { g, fillMat, borderMat, zonePt };
+}
+const ZONE_X = LAYOUT.roadWidth / 2 + 1.5; // pavement centre on either side
+const triggerZones = [buildTriggerZone(-ZONE_X), buildTriggerZone(ZONE_X)];
+let zoneElapsed = 0;
+
 function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
@@ -568,6 +614,32 @@ function animate() {
   for (const n of npcs) if (n.group.visible) pedObstacles.push({ pos: n.group.position, r: 0.8, name: 'pedestrian' });
   mergingCar.update(dt, pedObstacles);
   runner.update(dt);
+
+  // Free-roam trigger fields: pulse while the walk waits for the player, and
+  // start the next encounter when they step into either kerbside field.
+  {
+    const awaitZ = runner.walkAwaitZ ?? null;
+    const zonesActive = awaitZ !== null && runner.running;
+    for (const zn of triggerZones) zn.g.visible = zonesActive;
+    if (zonesActive) {
+      zoneElapsed += dt;
+      const beat = Math.pow(0.5 + 0.5 * Math.sin(zoneElapsed * Math.PI * 2.5), 3);
+      const bright = 1.0 + 3.5 * beat;
+      for (const zn of triggerZones) {
+        zn.g.position.z = awaitZ;
+        zn.fillMat.opacity = 0.08 + 0.38 * beat;
+        zn.borderMat.color.setRGB(0, 0.85 * bright, bright);
+        zn.zonePt.intensity = 7 * beat;
+      }
+      if (Math.abs(Math.abs(p.x) - ZONE_X) < 1.4 && Math.abs(p.z - awaitZ) < 1.6) {
+        runner.walkEnterZone();
+      }
+    } else {
+      zoneElapsed = 0;
+      for (const zn of triggerZones) zn.zonePt.intensity = 0;
+    }
+  }
+
   checkPedestrianCollisions();
   checkVehicleCollisions();
   updateCamera(dt);
