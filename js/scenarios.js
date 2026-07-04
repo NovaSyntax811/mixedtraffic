@@ -34,7 +34,7 @@ export class ScenarioRunner {
     this.av.reset();
     this.av.group.visible = true;
     this.humanCar.hide();
-    this.pedestrian.reset();
+    this.pedestrian.clearMotionState(); // keep position/side — no teleport between scenarios
     this.cyclist.hide();
     this.mergingCar.hide();
     this.traffic?.clearScripted();
@@ -96,6 +96,9 @@ export class ScenarioRunner {
     // The vehicle starts 80 m south of that and approaches naturally.
     ZEBRA = this.pedestrian.group.position.z;
     this.av.group.position.z = ZEBRA - 80;
+    // Which curb the player actually started on (west = -1, east = 1), so
+    // "crossed" detection and side-specific staging work from either side.
+    this._startSide = Math.sign(this.pedestrian.group.position.x) || -1;
 
     if (scenario === 1) {
       // Baseline: same yielding interaction, but a human-driven car and no
@@ -160,8 +163,12 @@ export class ScenarioRunner {
       // at the crossing. The AV's yield signal is actually addressed to the
       // NPC on the far curb — the participant must judge for themselves
       // whether the signal applies to them too.
-      this.npcs?.[0]?.place(5.5, ZEBRA, -Math.PI / 2);     // far (east) curb — the real addressee
-      this.npcs?.[1]?.place(-5.5, ZEBRA + 3, Math.PI / 2); // same curb as the player, a bit north
+      // Mirrored on whichever side the player actually stands (west or east),
+      // so "far curb" and "same curb as the player" stay correct either way.
+      const side = this._startSide;
+      const farX = -side * 5.5, nearX = side * 5.5;
+      this.npcs?.[0]?.place(farX, ZEBRA, -Math.sign(farX) * Math.PI / 2);        // far curb — the real addressee
+      this.npcs?.[1]?.place(nearX, ZEBRA + 3, -Math.sign(nearX) * Math.PI / 2);  // same curb as the player, a bit north
       this.setPhase('approach', 'Several people are waiting to cross here. Decide for yourself (W/↑).');
     } else {
       this.setPhase('approach', 'An AV is approaching, with no marked crossing here. See whether it yields for you (W/↑).');
@@ -304,7 +311,7 @@ export class ScenarioRunner {
           this._npcDelay -= dt;
           if (this._npcDelay <= 0) {
             this._npcDelay = undefined;
-            this.npcs[0].startCross(-5.6); // east -> west, right across the zebra
+            this.npcs[0].startCross(this._startSide * 5.6); // far curb -> the player's curb
             this.logger.event('npc_crossing_started');
           }
         }
@@ -354,7 +361,7 @@ export class ScenarioRunner {
       case 'action': {
         if (this.humanCar.speed < 0.2) this.logger.signalOnset(); // implicit cue: full stop
         const px = this.pedestrian.group.position.x;
-        if (px > LAYOUT.roadWidth / 2 + 0.5) {
+        if (px * this._startSide < -(LAYOUT.roadWidth / 2 + 0.5)) {
           this.logger.event('crossed_baseline');
           this.setPhase('acknowledgment', 'You crossed, and the car waits briefly.');
         } else if (this._timer > 30 && !this.logger.current?.crossed) {
@@ -479,7 +486,7 @@ export class ScenarioRunner {
         // (audio-only runs get a longer window — orientation by ear takes time)
         const px = this.pedestrian.group.position.x;
         const timeoutS = 30; // AV gives up and drives on
-        if (px > LAYOUT.roadWidth / 2 + 0.5) {
+        if (px * this._startSide < -(LAYOUT.roadWidth / 2 + 0.5)) {
           this.sound.stopYieldLoop();
           this.av.setDisplay('thanks');
           this.sound.playThanks();

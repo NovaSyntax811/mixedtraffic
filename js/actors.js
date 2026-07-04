@@ -66,6 +66,13 @@ export class Pedestrian {
     this.group.position.set(-(roadWidth / 2 + sidewalk / 2), 0, zebraZ);
     this.heading = Math.PI / 2; // facing +X (across the street)
     this.group.rotation.set(0, this.heading, 0);
+    this.clearMotionState();
+  }
+
+  // Clears fall/motion bookkeeping without moving the player. Used between
+  // scenarios in the continuous walk, where the player's actual position and
+  // side of the road carry over instead of snapping back to the default spot.
+  clearMotionState() {
     this.moving = false;
     this.fallen = false;
     this._fallT = 0;

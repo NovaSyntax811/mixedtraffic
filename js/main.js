@@ -2,10 +2,10 @@
 import * as THREE from 'three';
 import { createScene, LAYOUT } from './scene.js?v=47';
 import { AV } from './vehicle.js?v=36';
-import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=45';
+import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=46';
 import { EHMISound } from './audio.js?v=17';
 import { BehaviorLogger, showConfidenceCheck } from './logger.js?v=15';
-import { ScenarioRunner, setCrossingZ } from './scenarios.js?v=56';
+import { ScenarioRunner, setCrossingZ } from './scenarios.js?v=57';
 
 const { scene, camera, renderer, composer, setTimeOfDay } = createScene();
 
@@ -347,7 +347,11 @@ document.querySelectorAll('.scenario-card').forEach((card) => {
     selectedScenario = /^\d+$/.test(v) ? parseInt(v, 10) : v;
     $('scenarioLabel').textContent = SCENARIO_LABELS[selectedScenario];
     $('scenarioMenu').classList.add('hidden');
-    setCrossingZ(LAYOUT.zebraZ); // reset to the default crossing when launching manually
+    // Manual launch (unlike the continuous walk's kerb trigger) starts fresh
+    // at the default crossing, west side, rather than wherever the player
+    // happened to be standing.
+    pedestrian.reset();
+    setCrossingZ(LAYOUT.zebraZ);
     startSelected();
   });
 });
@@ -525,13 +529,16 @@ const ROAD_HALF = LAYOUT.roadWidth / 2;
 let sirenWasActive = false;
 let lastLookingAtVehicle = false;
 let zoneElapsed = 0;
+let zoneSide = -1;        // -1 = west pavement, 1 = east; locked when the zone appears
+let zoneWasActive = false;
 
-// Blinking ground marker on the west pavement at the crossing: the player
-// walks into it to trigger the next scenario — no button needed.
+// Blinking ground marker on the pavement, on whichever side of the road the
+// player currently stands: the player walks into it to trigger the next
+// scenario — no button needed. Its x is set dynamically (see animate()) so it
+// always appears on the player's side rather than always the west pavement.
 function buildTriggerZone() {
   const g = new THREE.Group();
-  // Centre on the west pavement, tight to the road edge, at the crossing.
-  const cx = -(LAYOUT.roadWidth / 2 + 1.4); // x = -5.4
+  const cx = -(LAYOUT.roadWidth / 2 + 1.4); // placeholder; overwritten each frame
   const cz = LAYOUT.zebraZ;                 // z = 12
 
   // Filled rectangle — bright enough to be caught by the bloom pass.
@@ -616,7 +623,9 @@ function animate() {
   runner.update(dt);
 
   // Trigger zone: show the blinking pavement marker while between scenarios,
-  // and start the next one the moment the player steps inside it. The zone
+  // and start the next one the moment the player steps inside it. It appears
+  // on whichever pavement the player is currently standing on (locked at the
+  // moment it appears, so it doesn't jitter if they wander mid-station), and
   // shifts north with each station so the player feels forward momentum.
   {
     const dialogOpen = !$('confidenceDialog').classList.contains('hidden')
@@ -626,8 +635,10 @@ function animate() {
     triggerZone.g.visible = zoneActive;
 
     if (zoneActive) {
+      if (!zoneWasActive) zoneSide = Math.sign(p.x) || zoneSide; // lock side on appearance
       const station = STATIONS[playlistIndex];
-      triggerZone.g.position.z = station.zoneZ; // shift zone to this station's position
+      const cx = zoneSide * (LAYOUT.roadWidth / 2 + 1.4);
+      triggerZone.g.position.set(cx, 0, station.zoneZ); // shift zone to this station's position + side
       zoneElapsed += dt;
       // Sharp upward pulse (1.25 Hz) — reads clearly at a glance.
       const beat = Math.pow(0.5 + 0.5 * Math.sin(zoneElapsed * Math.PI * 2.5), 3);
@@ -636,7 +647,6 @@ function animate() {
       triggerZone.borderMat.color.setRGB(0, 0.85 * bright, bright);
       triggerZone.zonePt.intensity = 7 * beat;
 
-      const cx = -(LAYOUT.roadWidth / 2 + 1.4);
       const inZone = Math.abs(p.x - cx) < 1.4 && Math.abs(p.z - station.zoneZ) < 1.5;
       if (inZone) {
         advanceToNext();
@@ -649,6 +659,7 @@ function animate() {
         hudMsg.textContent = 'All scenarios complete. Use ☰ to replay any.';
       }
     }
+    zoneWasActive = zoneActive;
   }
 
   checkPedestrianCollisions();
