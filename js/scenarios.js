@@ -559,7 +559,7 @@ export class ScenarioRunner {
 
   _startStation(st) {
     this._walkPhase = 'encounter';
-    this._stationPhase = 'approach';
+    this._stationPhase = 'stage';
     this._timer = 0;
     this._stationActorsDone = false;
     this._npcCrossDelay = undefined;
@@ -568,18 +568,27 @@ export class ScenarioRunner {
     // either side (crossing then means going the other way), so nobody has to
     // cross back just to continue the walk.
     this._stationSide = this.pedestrian.group.position.x >= 0 ? 1 : -1;
-    // The car comes up from behind (the side a crossing pedestrian checks first),
-    // a little south of the crossing, and approaches at the set speed.
-    this.av.group.visible = true;
-    this.av.group.position.set(-1.9, 0, st.z - 32);
-    this.av.group.rotation.y = 0;
-    this.av.speed = this.approachSpeed * 0.6;
-    this.av.targetSpeed = this.approachSpeed;
-    this.av.setBandState('neutral', true);
-    this.av.setDisplay('off');
+    // The scene is set FIRST: any waiting pedestrians are already there when
+    // the player arrives (no popping in mid-encounter), and the car only sets
+    // off after a short beat, so there is time to take the scene in.
+    this._stageStationActors(st);
+    this.av.group.visible = false;
+    this._stageT = 2.5; // seconds before the car appears down the road
     this.logger.event('walk_station_start', { kind: st.kind, z: st.z });
     this.onPhase?.('encounter'); // never the domain name — the phase label is on screen
     this.onMessage?.(st.intro);
+  }
+
+  // Pedestrian staging at the moment the player enters the field, relative to
+  // the pavement the player is on (side changes stay supported).
+  _stageStationActors(st) {
+    const side = this._stationSide || -1;
+    if (st.kind === 'targeted') {
+      this.npcs?.[0]?.place(-side * 5.5, st.z, side * Math.PI / 2); // person on the far kerb (the real addressee)
+    } else if (st.kind === 'scalability') {
+      this.npcs?.[0]?.place(side * 5.5, st.z - 2, -side * Math.PI / 2);  // near side, just behind the player
+      this.npcs?.[1]?.place(-side * 5.5, st.z + 1.5, side * Math.PI / 2); // far side
+    }
   }
 
   // Where the car should aim to stop. If the player is waiting (standing still)
@@ -599,6 +608,24 @@ export class ScenarioRunner {
   _updateStation(dt, st) {
     const p = this.pedestrian.group.position;
     switch (this._stationPhase) {
+      case 'stage': {
+        // Waiting pedestrians are already in place; after a short beat the car
+        // appears further down the road (later arrival than before, so the
+        // player has time to read the scene before it matters).
+        this._stageT -= dt;
+        if (this._stageT <= 0) {
+          this.av.group.visible = true;
+          this.av.group.position.set(-1.9, 0, st.z - 40);
+          this.av.group.rotation.y = 0;
+          this.av.speed = this.approachSpeed * 0.6;
+          this.av.targetSpeed = this.approachSpeed;
+          this.av.setBandState('neutral', true);
+          this.av.setDisplay('off');
+          this._stationPhase = 'approach';
+          this._timer = 0;
+        }
+        break;
+      }
       case 'approach': {
         this.av.targetSpeed = this.approachSpeed;
         if (st.z - this.av.frontZ < 26) {
@@ -661,19 +688,19 @@ export class ScenarioRunner {
     if (st.outro) this.onMessage?.(st.outro);
     this._stationPhase = 'resume';
     this._timer = 0;
+    // Domain-targeted mini survey right after the situation resolves (main.js
+    // shows it and appends the answers to the run's event log).
+    this.onStationSurvey?.(st.kind);
   }
 
-  // Bring in the station's extra road users at the moment the car yields.
-  // Placements are relative to the pavement the player is on (this._stationSide),
-  // so the staging works no matter which side they walked up.
+  // Reactions at the moment the car yields. The waiting pedestrians were
+  // already staged when the encounter began; here they only start REACTING to
+  // the signal (the addressee steps off shortly after the cue), and the
+  // negotiation station brings in the car behind.
   _triggerStationActors(st) {
-    const side = this._stationSide || -1;
     if (st.kind === 'targeted') {
-      this.npcs?.[0]?.place(-side * 5.5, st.z, side * Math.PI / 2); // person on the far kerb (the real addressee)
       this._npcCrossDelay = 1.8;
     } else if (st.kind === 'scalability') {
-      this.npcs?.[0]?.place(side * 5.5, st.z - 2, -side * Math.PI / 2);  // near side, just behind the player
-      this.npcs?.[1]?.place(-side * 5.5, st.z + 1.5, side * Math.PI / 2); // far side
       this._npcCrossDelay = 1.6;
     } else if (st.kind === 'negotiation') {
       // An impatient car a little behind the yielding AV: it honks, then

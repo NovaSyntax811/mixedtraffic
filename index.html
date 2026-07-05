@@ -106,13 +106,13 @@
       <h3>Scenarios</h3>
       <div class="scenario-list">
         <button class="scenario-card" data-scenario="1"><strong>Scenario 1</strong><span>A car comes down the street while you want to reach the other side.</span></button>
+        <button class="scenario-card" data-scenario="2"><strong>Scenario 2 (practice)</strong><span>A practice run to get used to the controls.</span></button>
         <button class="scenario-card" data-scenario="3"><strong>Scenario 3</strong><span>A car comes down the street while you want to reach the other side.</span></button>
+        <button class="scenario-card" data-scenario="4"><strong>Scenario 4 (extra)</strong><span>Two cars meet where a side street joins the main road.</span></button>
+        <button class="scenario-card" data-scenario="5"><strong>Scenario 5 (extra)</strong><span>A busy street with many road users.</span></button>
         <button class="scenario-card" data-scenario="6"><strong>Scenario 6</strong><span>A car comes down the street while you want to reach the other side.</span></button>
         <button class="scenario-card" data-scenario="9"><strong>Scenario 9</strong><span>A car comes down the street while you want to reach the other side.</span></button>
         <button class="scenario-card highlight" data-scenario="walk"><strong>★ Free walk</strong><span>A longer walk through town. Glowing fields mark where your walk continues; cross the street whenever you choose.</span></button>
-        <button class="scenario-card" data-scenario="2"><strong>Scenario 2 (practice)</strong><span>A practice run to get used to the controls.</span></button>
-        <button class="scenario-card" data-scenario="4"><strong>Scenario 4 (extra)</strong><span>Two cars meet where a side street joins the main road.</span></button>
-        <button class="scenario-card" data-scenario="5"><strong>Scenario 5 (extra)</strong><span>A busy street with many road users.</span></button>
       </div>
       <button id="menuClose">Close</button>
     </div>
@@ -235,6 +235,16 @@
     </div>
   </div>
 
+  <!-- ===== Free-walk mini survey (built per situation by logger.js; the
+       title stays neutral, questions never name a domain) ===== -->
+  <div id="walkSurvey" class="modal hidden">
+    <div class="modal-box">
+      <h3>Quick questions</h3>
+      <div id="wsBody"></div>
+      <button id="wsSubmit" disabled>Continue</button>
+    </div>
+  </div>
+
   <!-- ===== Accident dialog ===== -->
   <div id="accidentDialog" class="modal hidden">
     <div class="modal-box">
@@ -244,6 +254,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=57"></script>
+  <script type="module" src="js/main.js?v=58"></script>
 </body>
 </html>

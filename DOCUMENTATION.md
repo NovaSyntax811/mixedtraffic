@@ -77,10 +77,20 @@ spot (trigger logic adapted from Julius's branch); stepping into either one
 starts the next situation, so after crossing the participant can carry on up
 whichever side they like. The four encounters: a stop although they were only
 passing, a person waiting opposite, an overtaking driver behind a yielding
-car, people on both sides. Texts and the phase label are debiased like
-everything else, reactive stops never rest inside a junction, and the
-overtaking driver there brakes for people in the road, so a collision cannot
-abort the walk.
+car, people on both sides. Waiting pedestrians are already in place when the
+player enters the field, and the car only sets off a couple of seconds later
+from further down the road, so there is time to read the scene first. Texts
+and the phase label are debiased like everything else, reactive stops never
+rest inside a junction, and the overtaking driver there brakes for people in
+the road, so a collision cannot abort the walk.
+
+After each free-walk situation a short **mini survey** appears ("Quick
+questions", 3 items): one or two questions targeted at that situation's
+domain (wanted to cross? who was the signal for? what did you rely on?) plus
+a shared trust item (1 to 7) that makes trust comparable across all four
+situations. Answers are appended to the walk run's event log as
+`walk_survey` events. The admin menu's confidence-check toggle also switches
+these mini surveys off for sessions where the probing happens verbally.
 
 ## Debiasing rules (implemented)
 
@@ -130,12 +140,20 @@ hit a badly timed crossing; that hazard is the point of the scenario.
 ## Logged data (JSON)
 
 Per run: `reactionTimeMs` (signal onset to crossing start), `crossed`,
-`completedCrossing`, `hesitations`, `avDistanceAtCrossingStart`,
+`completedCrossing`, `avDistanceAtCrossingStart`,
 `gazeAtVehiclePreCrossMs` and `scannedBeforeCrossing` (first person gaze
 proxy; more than 0.4 s on the vehicle counts as an active scan), a
 timestamped `events` list, and the confidence check answers (null when the
 check is toggled off). Aborted runs are kept and flagged. Export via the
 admin menu.
+
+Hesitation is measured three ways:
+
+- `hesitations`: how often the pedestrian stopped while already in the road.
+- `hesitationTimeMs`: how long in total they stood still while in the road.
+- `falseStarts`: how often they stepped right up to the kerb (closer than
+  0.7 m to the road edge) and then backed away (beyond 1.2 m) without
+  crossing; each occurrence also logs a `false_start` event.
 
 ## Confidence check
 

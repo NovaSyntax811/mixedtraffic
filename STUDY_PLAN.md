@@ -106,6 +106,17 @@ Technical prerequisites before Stage 2 (not yet built):
 | Negotiation (6) | hesitations, crossing timing vs the overtake | felt safety, trust in the car vs the traffic |
 | Overtrust (3) | gaze before crossing, crossed into the cyclist's path | "did you check the road yourself?" |
 
+Hesitation is captured three ways in every run: stops while in the road
+(count), total standing time while in the road (ms), and false starts
+(stepping up to the kerb and backing away before crossing).
+
+In the free walk, each situation ends with a built-in mini survey ("Quick
+questions"): one or two items targeted at that situation's domain plus a
+shared 1 to 7 trust item, so trust is directly comparable across the four
+situations. Answers are stored as `walk_survey` events in the log; the
+confidence-check toggle in the admin menu also disables these for verbal
+focus-group probing.
+
 ## Open decisions
 
 - Randomization scheme for Stage 2 (full random vs Latin square).

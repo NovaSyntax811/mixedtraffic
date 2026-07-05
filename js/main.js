@@ -4,8 +4,8 @@ import { createScene, LAYOUT } from './scene.js?v=48';
 import { AV } from './vehicle.js?v=36';
 import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=55';
 import { EHMISound } from './audio.js?v=17';
-import { BehaviorLogger, showConfidenceCheck } from './logger.js?v=15';
-import { ScenarioRunner } from './scenarios.js?v=57';
+import { BehaviorLogger, showConfidenceCheck, showWalkSurvey } from './logger.js?v=16';
+import { ScenarioRunner } from './scenarios.js?v=58';
 
 const { scene, camera, renderer, composer, setTimeOfDay } = createScene();
 
@@ -88,6 +88,15 @@ const runner = new ScenarioRunner({
     hudMsg.textContent = 'Thank you. You can walk around, the next situation will start in a moment.';
   },
 });
+
+// Free-walk mini surveys: after each walk situation, ask the short
+// domain-targeted questions (unless the researcher switched checks off for a
+// verbal session). Answers land in the walk run's event log.
+runner.onStationSurvey = async (kind) => {
+  if (!$('toggleConfidence').checked) return;
+  const answers = await showWalkSurvey(kind);
+  if (answers) logger.event('walk_survey', { kind, ...answers });
+};
 
 // ---------- Input ----------
 const keys = new Set();
@@ -661,7 +670,7 @@ function animate() {
     }
   }
   lastLookingAtVehicle = lookingAtVehicle;
-  logger.tick(inRoad, pedestrian.moving, avDist, lookingAtVehicle, dt * 1000);
+  logger.tick(inRoad, pedestrian.moving, avDist, lookingAtVehicle, dt * 1000, Math.abs(p.x) - ROAD_HALF);
 
   // Sound update with camera-relative panning
   const camRight = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
