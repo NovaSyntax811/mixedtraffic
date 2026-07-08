@@ -5,7 +5,7 @@ import { AV } from './vehicle.js?v=36';
 import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=55';
 import { EHMISound } from './audio.js?v=17';
 import { BehaviorLogger, showConfidenceCheck, showWalkSurvey } from './logger.js?v=16';
-import { ScenarioRunner } from './scenarios.js?v=58';
+import { ScenarioRunner } from './scenarios.js?v=59';
 
 const { scene, camera, renderer, composer, setTimeOfDay } = createScene();
 
@@ -20,6 +20,7 @@ const SCENARIO_LIGHTING = {
   5: 'dusk',         // Mixed traffic — emergency lights pop
   6: 'afternoon',    // Aggressive drivers
   9: 'afternoon',    // Ambiguous signal
+  10: 'afternoon',   // Standalone uncertainty (pedestrian variant)
   walk: 'afternoon', // Free-roam finale — neutral daylight
 };
 
@@ -36,6 +37,9 @@ const SCENARIO_RECAP = {
   5: { title: 'Scenario 5', lines: [['🚌 Traffic', 'buses, trucks and bikes share the street'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
   6: { title: 'Scenario 6', lines: [['🚐 An automated car', 'is driving along the main road. It communicates with a light band, a windshield display and sound'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
   9: { title: 'Scenario 9', lines: [['🚐 An automated car', 'is driving along the main road. It communicates with a light band, a windshield display and sound'], ['🚶 Other people', 'are waiting near the street'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
+  // Standalone uncertainty (pedestrian variant): the framing gives the player a
+  // reason to walk WITHOUT crossing intent, and no hint that a car will react.
+  10: { title: 'Scenario 10', lines: [['🚶 You', 'are walking up the street to an appointment further ahead (W to walk where you look, mouse to turn)'], ['🛣 The street', 'everyday traffic may pass while you walk'], ['🤝 Your call', 'behave as you naturally would']] },
   // Free-roam finale: instructions only, no hint that situations are staged
   // along the way or which themes they carry.
   walk: { title: 'Free walk', lines: [['🚶 You', 'take a walk through town: W to walk where you look, mouse to turn'], ['🟦 Glowing fields', 'mark where your walk continues; step into one and see what happens'], ['🤝 Crossing is your call', 'cross the street whenever you choose, on whichever side you like']] },
@@ -245,6 +249,7 @@ const $ = (id) => document.getElementById(id);
 const SCENARIO_LABELS = {
   1: 'Scenario 1', 2: 'Scenario 2', 3: 'Scenario 3',
   4: 'Scenario 4', 5: 'Scenario 5', 6: 'Scenario 6', 9: 'Scenario 9',
+  10: 'Scenario 10',
   walk: 'Free walk',
 };
 let selectedScenario = 1;
@@ -263,8 +268,11 @@ function beginRun(scenario, { quietEdge = false, protocolStep = null } = {}) {
   // The continuous walk keeps traffic light (only each station's scripted
   // actors), starts the player in first person facing up the street, and clears
   // any leftover ambiguous-scenario NPCs. Other scenarios honour the toggle.
-  traffic.setEnabled(scenario === 'walk' ? false : $('toggleTraffic').checked);
-  if (scenario === 'walk') {
+  // Scenario 10 (standalone uncertainty) reuses the walk machinery, so it gets
+  // the same setup: no ambient traffic, first person facing up the street.
+  const walkLike = scenario === 'walk' || scenario === 10;
+  traffic.setEnabled(walkLike ? false : $('toggleTraffic').checked);
+  if (walkLike) {
     setCamera('pedestrian');
     fpvYaw = 0;        // face north (+Z), so W walks up the street
     fpvPitch = 0;

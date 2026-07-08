@@ -46,6 +46,7 @@ export class ScenarioRunner {
     this._stillTimer = 0;
     this._dynamicStopZ = null;
     this.walkAwaitZ = null; // z of the glowing field the walk is waiting at (null = none)
+    this._autoStations = false; // scenario 10: encounters arise while walking, no fields
     this.setPhase('idle', 'You can walk around freely. The next situation will start in a moment.');
   }
 
@@ -58,11 +59,14 @@ export class ScenarioRunner {
     // walk around and get oriented before it starts approaching.
     this._preroll = PREROLL;
 
-    if (scenario === 'walk') {
+    if (scenario === 'walk' || scenario === 10) {
       // Continuous walk: a single journey north past several encounters, each
       // probing one of the research themes (uncertainty, who the signal is for,
       // negotiation, and scaling to several road users). Traffic is kept light:
       // only the scripted actors of the current station appear.
+      // Scenario 10 reuses this machinery as the STANDALONE uncertainty
+      // situation (pedestrian variant): one encounter that arises naturally
+      // while walking, no glowing fields, run ends after it.
       this._preroll = 0;
       this.traffic?.setEnabled(false);
       this.traffic?.clearScripted();
@@ -92,12 +96,20 @@ export class ScenarioRunner {
           intro: 'People are waiting on both sides of the street as a car comes.',
           outro: 'The car drives on.' },
       ];
+      if (scenario === 10) {
+        this._autoStations = true;
+        this._walkStations = [{ kind: 'uncertainty', z: 34, maxWait: 9,
+          intro: 'A car is coming up the street. You are just walking here.',
+          outro: 'The car drives on.' }];
+      }
       this._walkIndex = 0;
       this._walkPhase = 'walking';
       this._stationPhase = null;
       this._walkHintShown = false;
       this._walkDone = false;
-      this.setPhase('walking', 'Take a walk through town (W to walk where you look, mouse to turn). Walk into the glowing field on the pavement to begin.');
+      this.setPhase('walking', scenario === 10
+        ? 'Walk up the street along the pavement (W to walk where you look, mouse to turn).'
+        : 'Take a walk through town (W to walk where you look, mouse to turn). Walk into the glowing field on the pavement to begin.');
       return;
     }
 
@@ -181,7 +193,7 @@ export class ScenarioRunner {
   // lets the person wait anywhere along the kerb and have the car respond to
   // them, not to a predetermined crossing point.
   _updatePedestrianDetection(dt) {
-    if (this.scenario === 1 || this.scenario === 4 || this.scenario === 'walk') return;
+    if (this.scenario === 1 || this.scenario === 4 || this.scenario === 'walk' || this.scenario === 10) return;
     // Once the AV has committed to its stop (action phase onward), freeze the
     // target so it does not chase the pedestrian as they step into the road.
     if (this.phase !== 'approach' && this.phase !== 'detection') return;
@@ -272,7 +284,7 @@ export class ScenarioRunner {
       return;
     }
 
-    if (this.scenario === 'walk') this._updateWalk(dt);
+    if (this.scenario === 'walk' || this.scenario === 10) this._updateWalk(dt);
     else if (this.scenario === 4) this._updateMerge(dt);
     else if (this.scenario === 1) this._updateBaseline(dt);
     else if (this.scenario === 9) this._updateAmbiguous(dt);
@@ -531,12 +543,19 @@ export class ScenarioRunner {
           this._walkDone = true;
           this.walkAwaitZ = null;
           this.logger.event('walk_complete');
-          this.onMessage?.('You have reached the end of the walk. Thanks for coming along.');
+          if (this.scenario === 'walk') this.onMessage?.('You have reached the end of the walk. Thanks for coming along.');
           this._finish();
         }
         return;
       }
       this.onPhase?.('walking');
+      if (this._autoStations) {
+        // Standalone variant (scenario 10): the encounter arises on its own as
+        // the player walks, no field to step into.
+        this.walkAwaitZ = null;
+        if (this.pedestrian.group.position.z > st.z - 22) this._startStation(st);
+        return;
+      }
       // Between encounters the walk waits at a glowing field on the pavement
       // (rendered by main.js on BOTH kerbs, a few metres before the crossing
       // point, so the player can arrive on either side). main.js calls
