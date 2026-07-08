@@ -42,7 +42,7 @@ const SCENARIO_RECAP = {
   10: { title: 'Scenario 10', lines: [['🚶 You', 'are walking up the street to an appointment further ahead (W to walk where you look, mouse to turn)'], ['🛣 The street', 'everyday traffic may pass while you walk'], ['🤝 Your call', 'behave as you naturally would']] },
   // Free-roam finale: instructions only, no hint that situations are staged
   // along the way or which themes they carry.
-  walk: { title: 'Free walk', lines: [['🚶 You', 'take a walk through town: W to walk where you look, mouse to turn'], ['🟦 Glowing fields', 'mark where your walk continues; step into one and see what happens'], ['🤝 Crossing is your call', 'cross the street whenever you choose, on whichever side you like']] },
+  walk: { title: 'Training walk', lines: [['🚶 You', 'take a walk through town: W to walk where you look, mouse to turn'], ['🟦 Glowing fields', 'mark where your walk continues; step into one and see what happens'], ['🤝 Crossing is your call', 'cross the street whenever you choose, on whichever side you like']] },
 };
 // Show the centered "who's who" briefing for a scenario; the run starts when
 // the user confirms (recapStart). Falls back to running directly if there is
@@ -250,7 +250,7 @@ const SCENARIO_LABELS = {
   1: 'Scenario 1', 2: 'Scenario 2', 3: 'Scenario 3',
   4: 'Scenario 4', 5: 'Scenario 5', 6: 'Scenario 6', 9: 'Scenario 9',
   10: 'Scenario 10',
-  walk: 'Free walk',
+  walk: 'Training walk',
 };
 let selectedScenario = 1;
 let protocol = null; // { step, total } while the trust protocol is running
