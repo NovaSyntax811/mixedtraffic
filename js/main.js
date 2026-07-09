@@ -32,14 +32,14 @@ const SCENARIO_LIGHTING = {
 const SCENARIO_RECAP = {
   1: { title: 'Scenario 1', lines: [['🚗 A car', 'is driving along the main road'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
   2: { title: 'Scenario 2', lines: [['🚐 An automated car', 'is driving along the main road. It communicates with a light band, a windshield display and sound'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
-  3: { title: 'Scenario 3', lines: [['🚐 An automated car', 'is driving along the main road. It communicates with a light band, a windshield display and sound'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
-  4: { title: 'Scenario 4', lines: [['🚐 An automated car', 'is driving along the main road. It communicates with a light band, a windshield display and sound'], ['🚗 Another car', 'is waiting at the side street'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
-  5: { title: 'Scenario 5', lines: [['🚌 Traffic', 'buses, trucks and bikes share the street'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
-  6: { title: 'Scenario 6', lines: [['🚐 An automated car', 'is driving along the main road. It communicates with a light band, a windshield display and sound'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
-  9: { title: 'Scenario 9', lines: [['🚐 An automated car', 'is driving along the main road. It communicates with a light band, a windshield display and sound'], ['🚶 Other people', 'are waiting near the street'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
+  3: { title: 'Extra A', lines: [['🚐 An automated car', 'is driving along the main road. It communicates with a light band, a windshield display and sound'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
+  4: { title: 'Extra B', lines: [['🚐 An automated car', 'is driving along the main road. It communicates with a light band, a windshield display and sound'], ['🚗 Another car', 'is waiting at the side street'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
+  5: { title: 'Extra C', lines: [['🚌 Traffic', 'buses, trucks and bikes share the street'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
+  6: { title: 'Scenario 3', lines: [['🚐 An automated car', 'is driving along the main road. It communicates with a light band, a windshield display and sound'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
+  9: { title: 'Scenario 4', lines: [['🚐 An automated car', 'is driving along the main road. It communicates with a light band, a windshield display and sound'], ['🚶 Other people', 'are waiting near the street'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
   // Standalone uncertainty (pedestrian variant): the framing gives the player a
   // reason to walk WITHOUT crossing intent, and no hint that a car will react.
-  10: { title: 'Scenario 10', lines: [['🚶 You', 'are walking up the street to an appointment further ahead (W to walk where you look, mouse to turn)'], ['🛣 The street', 'everyday traffic may pass while you walk'], ['🤝 Your call', 'behave as you naturally would']] },
+  10: { title: 'Scenario 5', lines: [['🚶 You', 'are walking up the street to an appointment further ahead (W to walk where you look, mouse to turn)'], ['🛣 The street', 'everyday traffic may pass while you walk'], ['🤝 Your call', 'behave as you naturally would']] },
   // Free-roam finale: instructions only, no hint that situations are staged
   // along the way or which themes they carry.
   walk: { title: 'Training walk', lines: [['🚶 You', 'take a walk through town: W to walk where you look, mouse to turn'], ['🟦 Glowing fields', 'mark where your walk continues; step into one and see what happens'], ['🤝 Crossing is your call', 'cross the street whenever you choose, on whichever side you like']] },
@@ -243,13 +243,16 @@ function updateCamera(dt) {
 const $ = (id) => document.getElementById(id);
 
 // ---------- Scenario menu + study modes ----------
-// Participant-facing labels are number-only: the descriptive titles gave the
-// twist away ("The car missed a cyclist"). The researcher mapping lives in
-// DOCUMENTATION.md, not in the UI the group can see.
+// Participant-facing numbering is SEQUENTIAL over the session set (Scenario 1
+// to 5), while the internal ids stay unchanged: display 3 = internal 6,
+// display 4 = internal 9, display 5 = internal 10. The JSON log records the
+// internal id AND the display label per run (nextMeta in beginRun), so the
+// data is unambiguous. The unused extras carry letters to avoid any clash
+// with the sequential numbers.
 const SCENARIO_LABELS = {
-  1: 'Scenario 1', 2: 'Scenario 2', 3: 'Scenario 3',
-  4: 'Scenario 4', 5: 'Scenario 5', 6: 'Scenario 6', 9: 'Scenario 9',
-  10: 'Scenario 10',
+  1: 'Scenario 1', 2: 'Scenario 2', 6: 'Scenario 3',
+  9: 'Scenario 4', 10: 'Scenario 5',
+  3: 'Extra A', 4: 'Extra B', 5: 'Extra C',
   walk: 'Training walk',
 };
 let selectedScenario = 1;
@@ -281,6 +284,7 @@ function beginRun(scenario, { quietEdge = false, protocolStep = null } = {}) {
   $('recap').classList.add('hidden'); // briefing (if any) already confirmed
 
   logger.nextMeta = {
+    label: SCENARIO_LABELS[scenario], // display name; run.scenario keeps the internal id
     soundVolume: sound.volume,
     ...(scenario === 9 ? { mode: 'ambiguous_signal' } : {}),
     ...(protocolStep !== null ? { protocolStep } : {}),

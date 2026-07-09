@@ -108,9 +108,9 @@
         <button class="scenario-card highlight" data-scenario="walk"><strong>★ Training walk</strong><span>A walk through town to get used to the controls. Glowing fields mark where your walk continues.</span></button>
         <button class="scenario-card" data-scenario="1"><strong>Scenario 1</strong><span>A car comes down the street while you want to reach the other side.</span></button>
         <button class="scenario-card" data-scenario="2"><strong>Scenario 2</strong><span>A car comes down the street while you want to reach the other side.</span></button>
-        <button class="scenario-card" data-scenario="6"><strong>Scenario 6</strong><span>A car comes down the street while you want to reach the other side.</span></button>
-        <button class="scenario-card" data-scenario="9"><strong>Scenario 9</strong><span>A car comes down the street while you want to reach the other side.</span></button>
-        <button class="scenario-card" data-scenario="10"><strong>Scenario 10</strong><span>You are walking up the street to an appointment further ahead.</span></button>
+        <button class="scenario-card" data-scenario="6"><strong>Scenario 3</strong><span>A car comes down the street while you want to reach the other side.</span></button>
+        <button class="scenario-card" data-scenario="9"><strong>Scenario 4</strong><span>A car comes down the street while you want to reach the other side.</span></button>
+        <button class="scenario-card" data-scenario="10"><strong>Scenario 5</strong><span>You are walking up the street to an appointment further ahead.</span></button>
       </div>
       <button id="menuClose">Close</button>
     </div>
@@ -120,13 +120,16 @@
        Scenario selection lives HERE so participants and a watching focus group
        never see a list of what is coming. Buttons show numbers only; the
        number-to-content mapping is documented in DOCUMENTATION.md.
-       QUALITATIVE STUDY BUILD, session set only. Training = free walk, always
-       first. Then the study scenarios in the participant's randomized order:
-       1 No signals + 2 With signals (RQ1 benefit) · 9 Waiting people (RQ2
-       targeted) · 6 Two cars (honking overtaker the player cannot see behind
-       the AV) + 10 Just walking (unprompted stop) (RQ3/4 negotiation and
-       uncertainty). Extras 3/4/5 exist in code but are not offered in the UI;
-       start them via __sim.beginRun(n) if ever needed for a demo. -->
+       QUALITATIVE STUDY BUILD, session set only, SEQUENTIAL display numbers.
+       Display number vs internal id (the JSON log records the internal id AND
+       the display label per run):
+       Scenario 1 = internal 1, No signals (RQ1)
+       Scenario 2 = internal 2, With signals (RQ1)
+       Scenario 3 = internal 6, Two cars: honking overtaker hidden behind the AV (RQ3/4)
+       Scenario 4 = internal 9, Waiting people: signal addresses the person opposite (RQ2)
+       Scenario 5 = internal 10, Just walking: unprompted stop (RQ3/4)
+       Training walk always first, then the participant's randomized order.
+       Extras (internal 3/4/5) exist in code only: __sim.beginRun(n). -->
 
   <div id="adminMenu" class="modal hidden">
     <div class="modal-box admin-box">
@@ -140,11 +143,11 @@
         <div class="admin-row">
           <button data-scn="1">1 · No signals</button>
           <button data-scn="2">2 · With signals</button>
-          <button data-scn="6">6 · Two cars</button>
+          <button data-scn="6">3 · Two cars</button>
         </div>
         <div class="admin-row">
-          <button data-scn="9">9 · Waiting people</button>
-          <button data-scn="10">10 · Just walking</button>
+          <button data-scn="9">4 · Waiting people</button>
+          <button data-scn="10">5 · Just walking</button>
         </div>
         <div class="admin-row">
           <button id="stopBtn">⏹ Stop current scenario</button>
@@ -255,6 +258,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=60"></script>
+  <script type="module" src="js/main.js?v=61"></script>
 </body>
 </html>

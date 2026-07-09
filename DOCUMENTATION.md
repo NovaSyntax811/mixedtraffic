@@ -54,20 +54,23 @@ neutral briefing and presses Start. Between situations the participant can
 walk around freely (this doubles as controls practice). Restart re-runs the
 current scenario without the briefing.
 
-## Scenario key (researcher only)
+## Scenario key (researcher only, qualitative study build)
 
-The UI shows only numbers. Mapping:
+Participants see sequential numbers (Scenario 1 to 5). The JSON log records
+the INTERNAL id per run plus the display label (`label` field), so match logs
+against the internal id column below.
 
-| # | Content | Topic |
-|---|---|---|
-| 1 | Human car, no eHMI at all; only the implicit motion cue | Baseline / benefit |
-| 3 | Full eHMI yield; an unnoticed cyclist overtakes the stopped AV and does not brake | Overtrust |
-| 6 | The AV yields correctly; the driver behind honks and overtakes across the crossing | Negotiation |
-| 9 | The AV yields while several people wait; the signal addresses the person opposite | Targeted pro-sociality |
-| Free roam | Continuous walk up the street; four staged encounters react to where the player is | Finale; its stations add uncertainty and scalability |
-| 2 | Plain full eHMI yield | Extra: demo and practice |
-| 4 | The AV yields and shows "After you" to a car merging from the side street | Extra: vehicle-directed signal |
-| 5 | Busy street: bus, truck, cyclist, ambulance everyone pulls over for | Extra: excluded from the study |
+| Display | Internal id (in logs) | Content | RQ |
+|---|---|---|---|
+| Training walk | walk | Walk through town with glowing trigger fields; controls practice, not analysed | Training |
+| Scenario 1 | 1 | Human car, no signals at all; only the implicit motion cue | RQ1 |
+| Scenario 2 | 2 | Automated car, full eHMI yield (light band, display, sound) | RQ1 |
+| Scenario 3 | 6 | The AV yields; the honking driver behind it, hidden from the player by the AV, overtakes | RQ3/4 |
+| Scenario 4 | 9 | Several people wait; the yield signal addresses the person opposite | RQ2 |
+| Scenario 5 | 10 | The participant is only walking past; the car stops for them unprompted | RQ3/4 |
+
+Extras (internal 3 unnoticed cyclist, 4 merge signal, 5 busy street) have no
+UI entry in this build; start them from the console via `__sim.beginRun(n)`.
 
 The free roam is meant to be run last: the participant takes a walk through a
 larger town (three junctions, distinct districts: cool south, warm brick
