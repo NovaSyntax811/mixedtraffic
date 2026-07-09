@@ -137,7 +137,7 @@ function setCamera(mode) {
   camMode = mode;
   document.querySelectorAll('#camerabar [data-cam]').forEach((b) =>
     b.classList.toggle('active', b.dataset.cam === mode));
-  pedestrian.speed = mode === 'cyclist' ? 4.0 : 1.5; // cyclist embodiment is faster
+  pedestrian.speed = mode === 'cyclist' ? 4.0 : 3.0; // cyclist embodiment is faster
 }
 function cycleCamera() {
   setCamera(camModes[(camModes.indexOf(camMode) + 1) % camModes.length]);

@@ -20,7 +20,7 @@ export function blockingObstacle(pos, forward, obstacles, aheadDist = 7, latBase
 export class Pedestrian {
   constructor(scene) {
     this.group = new THREE.Group();
-    this.speed = 1.5;       // m/s walking
+    this.speed = 3.0;       // m/s walking
     this.heading = 0;
     this._walkPhase = 0;
     this.moving = false;
@@ -157,7 +157,7 @@ export class NpcPedestrian {
     }
 
     this.state = 'idle'; // idle | crossing
-    this.speed = 1.4;
+    this.speed = 2.8;
     this._walkPhase = 0;
     this.group.visible = false;
     scene.add(this.group);

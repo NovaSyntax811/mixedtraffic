@@ -103,17 +103,21 @@ masking music loop over the AV cues. Both log the active sound volume per run
 required sound-pleasantness rating (1 = very annoying … 7 = very pleasant) to
 the confidence check.
 
-**Scenario 9 — Ambiguous Signal (signal-scoping challenge):** several
+**Scenario 9 — Broadcast Signal (signal-scoping challenge):** several
 pedestrians wait at the crossing — one on the participant's curb, one on the
-opposite curb. The AV runs its full yield sequence, but the signal is
-actually addressed to the pedestrian on the *far* curb, who starts crossing
-~1.6 s after the cue. All messages stay neutral ("AV yields — but for whom?"),
-so the participant has to judge whether the broadcast signal applies to them.
-The AV safely waits until everyone who entered the road (NPC and/or
-participant) has cleared it. Logged: `npc_crossing_started/finished` plus the
-standard behavioral measures — comparing reaction times and chosen reasons
-("the signal" vs. "the vehicle stopped") against scenario 2 shows whether
-people read the broadcast signal as personally addressed.
+opposite curb. The AV runs its full yield sequence once, and *both* NPCs act
+on that same signal, each after their own staggered, human-like reaction
+delay (1.4 s / 2.6 s) rather than stepping off in lockstep. The participant is
+free to cross alongside them. Messages frame the open question directly
+("AV yields once — everyone waiting can go. Is that signal for you too?"),
+so the participant judges whether a single broadcast signal genuinely serves
+several people, including themselves, at once. The AV safely waits until
+everyone who entered the road (either NPC and/or the participant) has
+actually cleared it before thanking everyone and moving on. Logged:
+`npc_crossing_started/finished` (tagged per NPC) plus the standard behavioral
+measures — comparing reaction times and chosen reasons ("the signal" vs. "the
+vehicle stopped") against scenario 2 shows whether people read a broadcast
+signal as personally addressed even when others are visibly acting on it too.
 
 **★ Trust Protocol (Story 3):** five back-to-back runs; runs 1–4 are clean
 scenario-2 yields, run 5 silently swaps in the unaddressed-cyclist edge case —

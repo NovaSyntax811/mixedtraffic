@@ -149,13 +149,16 @@ export class ScenarioRunner {
       ];
       this.setPhase('approach', 'Aggressive drivers who are unhappy with the cautious AV. Cross carefully (W/↑).');
     } else if (scenario === 9) {
-      // Ambiguous signal (signal-scoping challenge): several pedestrians wait
-      // at the crossing. The AV's yield signal is actually addressed to the
-      // NPC on the far curb — the participant must judge for themselves
-      // whether the signal applies to them too.
-      this.npcs?.[0]?.place(5.5, ZEBRA, -Math.PI / 2);     // far (east) curb — the real addressee
+      // Broadcast signal (signal-scoping challenge): several pedestrians wait
+      // at the crossing, on both curbs. The AV gives a single yield signal,
+      // and everyone waiting — the far-curb NPC, the near-curb NPC, and the
+      // participant — is free to act on it, each reacting after their own
+      // human-like beat rather than all stepping off in lockstep. The open
+      // question is not "who is this really for" but whether one broadcast
+      // signal can genuinely serve several people, including you, at once.
+      this.npcs?.[0]?.place(5.5, ZEBRA, -Math.PI / 2);     // far (east) curb
       this.npcs?.[1]?.place(-5.5, ZEBRA + 3, Math.PI / 2); // same curb as the player, a bit north
-      this.setPhase('approach', 'Several people are waiting to cross here. Decide for yourself (W/↑).');
+      this.setPhase('approach', 'Several people are waiting to cross here, on both curbs. Decide for yourself (W/↑).');
     } else {
       this.setPhase('approach', 'An AV is approaching, with no marked crossing here. See whether it yields for you (W/↑).');
     }
@@ -267,10 +270,13 @@ export class ScenarioRunner {
     else this._updateCrossing(dt);
   }
 
-  // ---------- Scenario 9: Ambiguous signal — who is the yield for? ----------
-  // The AV runs the full eHMI sequence, but the addressee is the NPC on the
-  // opposite curb. Messages stay deliberately neutral; the AV waits until
-  // everyone who entered the road (NPC and/or participant) has cleared it.
+  // ---------- Scenario 9: Broadcast signal — does one yield serve everyone? ----------
+  // The AV runs the full eHMI sequence once. Both waiting NPCs act on that same
+  // signal, each after their own reaction delay (people don't step off in
+  // lockstep in real life), and the participant is free to cross alongside
+  // them. The AV waits until every road user who stepped out — either NPC,
+  // and/or the participant — has actually cleared the crossing before it
+  // thanks everyone and moves on, the way a real vehicle would.
   _updateAmbiguous(dt) {
     const d = this.distToZebra;
     switch (this.phase) {
@@ -290,28 +296,41 @@ export class ScenarioRunner {
           this.av.setDisplay('yielding');
           this.sound.playGoAhead();
           this.logger.signalOnset();
-          this._npcDelay = 1.6; // the addressee reacts shortly after the signal
-          this.setPhase('action', 'AV yields, but for whom? Decide for yourself.');
+          // Both NPCs react to the same signal, but not at the same instant —
+          // staggered, human-like reaction times keep it from looking scripted.
+          this._npc0Delay = 1.4;
+          this._npc1Delay = 2.6;
+          this.setPhase('action', 'AV yields once — everyone waiting can go. Is that signal for you too?');
         }
         break;
       }
       case 'action': {
-        if (this._npcDelay !== undefined) {
-          this._npcDelay -= dt;
-          if (this._npcDelay <= 0) {
-            this._npcDelay = undefined;
-            this.npcs[0].startCross(-5.6); // east -> west, right across the zebra
-            this.logger.event('npc_crossing_started');
+        if (this._npc0Delay !== undefined) {
+          this._npc0Delay -= dt;
+          if (this._npc0Delay <= 0) {
+            this._npc0Delay = undefined;
+            this.npcs[0].startCross(-5.6); // far curb -> near curb, across the zebra
+            this.logger.event('npc_crossing_started', { npc: 0 });
           }
         }
-        const npcDone = this._npcDelay === undefined && this.npcs[0].state !== 'crossing';
+        if (this._npc1Delay !== undefined) {
+          this._npc1Delay -= dt;
+          if (this._npc1Delay <= 0) {
+            this._npc1Delay = undefined;
+            this.npcs[1].startCross(5.6); // near curb -> far curb, across the zebra
+            this.logger.event('npc_crossing_started', { npc: 1 });
+          }
+        }
+        const npc0Done = this._npc0Delay === undefined && this.npcs[0].state !== 'crossing';
+        const npc1Done = this._npc1Delay === undefined && this.npcs[1].state !== 'crossing';
         const playerInRoad = Math.abs(this.pedestrian.group.position.x) < LAYOUT.roadWidth / 2 + 0.4;
-        // Continue only when the addressee has crossed and nobody is on the road
-        if (!playerInRoad && ((npcDone && this._timer > 6) || this._timer > 35)) {
+        // Continue only once everyone who stepped out — both NPCs and the
+        // participant, if they crossed — has actually cleared the road.
+        if (!playerInRoad && ((npc0Done && npc1Done && this._timer > 6) || this._timer > 35)) {
           this.logger.event('npc_crossing_finished');
           this.av.setDisplay('thanks');
           this.sound.playThanks();
-          this.setPhase('acknowledgment', 'AV thanks you and continues.');
+          this.setPhase('acknowledgment', 'AV thanks everyone and continues.');
         }
         break;
       }

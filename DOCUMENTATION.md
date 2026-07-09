@@ -115,7 +115,7 @@ Numbered scenarios all play out at the same single crossing.
 | 4 | A signal for the other car | The AV yields and shows "After you" to a merging driver. The signal is for the car, not you. The AV does not thank anyone afterwards (the thank-you would come from the human driver who got let in). |
 | 5 | A busy intersection | The same crossing amid a bus, a truck, a cyclist and an ambulance that everyone pulls over for. Judging a crossing in a noisy scene. |
 | 6 | Impatient drivers | The AV yields correctly, but an impatient driver behind it honks and overtakes right across your path. The car is safe, the others are not. |
-| 9 | Is the signal for you? | Several people wait. The AV yields, but the signal is addressed to the person on the far kerb, who starts crossing shortly after. Do you read a broadcast signal as personally addressed? |
+| 9 | Is the signal for you too? | Several people wait, on both kerbs. The AV yields once, and both start crossing after their own staggered reaction time. Does one broadcast signal genuinely serve several people, including you, at once? |
 
 ## ★ A walk through town (continuous walk)
 
