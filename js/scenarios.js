@@ -172,7 +172,10 @@ export class ScenarioRunner {
   // lets the person wait anywhere along the kerb and have the car respond to
   // them, not to a predetermined crossing point.
   _updatePedestrianDetection(dt) {
-    if (this.scenario === 1 || this.scenario === 4 || this.scenario === 'walk') return;
+    // Scenario 9 deliberately uses a fixed stop line (see _updateAmbiguous):
+    // a dynamic stop could park the AV closer to one of its scripted NPCs
+    // than the scenario's fixed timers assume.
+    if (this.scenario === 1 || this.scenario === 4 || this.scenario === 9 || this.scenario === 'walk') return;
     // Once the AV has committed to its stop (action phase onward), freeze the
     // target so it does not chase the pedestrian as they step into the road.
     if (this.phase !== 'approach' && this.phase !== 'detection') return;
@@ -270,13 +273,24 @@ export class ScenarioRunner {
     else this._updateCrossing(dt);
   }
 
-  // ---------- Scenario 9: Broadcast signal — does one yield serve everyone? ----------
-  // The AV runs the full eHMI sequence once. Both waiting NPCs act on that same
-  // signal, each after their own reaction delay (people don't step off in
-  // lockstep in real life), and the participant is free to cross alongside
-  // them. The AV waits until every road user who stepped out — either NPC,
-  // and/or the participant — has actually cleared the crossing before it
-  // thanks everyone and moves on, the way a real vehicle would.
+  // ---------- Scenario 9: Broadcast signal — and the danger of assuming it's for you ----------
+  // Everything below fires on fixed, elapsed-time cues rather than reacting
+  // to another actor's live position or state. Earlier versions of this
+  // scenario had the AV wait for an NPC's crossing to finish while that same
+  // NPC waited for the AV to get out of its way — a circular dependency that
+  // could freeze both. Fixed timers, generous enough to comfortably cover the
+  // relevant walk, remove that dependency entirely: nothing here ever asks
+  // "is the other one done yet." A fixed stop line (not the usual
+  // pedestrian-tracking dynamic stop) keeps the AV's resting position a safe,
+  // known distance from both NPCs' crossing lines, for the same reason.
+  //
+  // Sequence: the AV yields for one real, tracked addressee — the NPC on the
+  // far curb, on the marked zebra — and moves off once they, and the
+  // participant if they crossed, are clear. It was never watching for anyone
+  // else. A second NPC, on the participant's own curb, reads the same
+  // wave/tone as meant for them too and steps out late, after the AV is
+  // already rolling again, at an unmarked point north of the zebra. The AV
+  // brakes hard for them before continuing.
   _updateAmbiguous(dt) {
     const d = this.distToZebra;
     switch (this.phase) {
@@ -288,7 +302,9 @@ export class ScenarioRunner {
         }
         break;
       case 'detection': {
-        const stopZ = Math.max(JUNCTION_CLEAR, this._dynamicStopZ ?? (ZEBRA - STOP_BEFORE));
+        // Fixed stop line only (see class comment) — always a safe, known
+        // distance from both NPCs' crossing lines.
+        const stopZ = Math.max(JUNCTION_CLEAR, ZEBRA - STOP_BEFORE);
         const gap = this._brakeToStopLine(this.av, stopZ);
         if (this.av.speed < 0.3 && gap < 1.0) {
           this.av.targetSpeed = 0;
@@ -296,41 +312,28 @@ export class ScenarioRunner {
           this.av.setDisplay('yielding');
           this.sound.playGoAhead();
           this.logger.signalOnset();
-          // Both NPCs react to the same signal, but not at the same instant —
-          // staggered, human-like reaction times keep it from looking scripted.
-          this._npc0Delay = 1.4;
-          this._npc1Delay = 2.6;
-          this.setPhase('action', 'AV yields once — everyone waiting can go. Is that signal for you too?');
+          this._npc0Started = false;
+          this.setPhase('action', 'AV yields. Cross when ready — but who is this signal actually for?');
         }
         break;
       }
       case 'action': {
-        if (this._npc0Delay !== undefined) {
-          this._npc0Delay -= dt;
-          if (this._npc0Delay <= 0) {
-            this._npc0Delay = undefined;
-            this.npcs[0].startCross(-5.6); // far curb -> near curb, across the zebra
-            this.logger.event('npc_crossing_started', { npc: 0 });
-          }
+        // The real, tracked addressee starts crossing on a fixed cue.
+        if (!this._npc0Started && this._timer > 1.4) {
+          this._npc0Started = true;
+          this.npcs[0].startCross(-5.6); // far curb -> near curb, on the marked zebra
+          this.logger.event('npc_crossing_started', { npc: 0, addressed: true });
         }
-        if (this._npc1Delay !== undefined) {
-          this._npc1Delay -= dt;
-          if (this._npc1Delay <= 0) {
-            this._npc1Delay = undefined;
-            this.npcs[1].startCross(5.6); // near curb -> far curb, across the zebra
-            this.logger.event('npc_crossing_started', { npc: 1 });
-          }
-        }
-        const npc0Done = this._npc0Delay === undefined && this.npcs[0].state !== 'crossing';
-        const npc1Done = this._npc1Delay === undefined && this.npcs[1].state !== 'crossing';
         const playerInRoad = Math.abs(this.pedestrian.group.position.x) < LAYOUT.roadWidth / 2 + 0.4;
-        // Continue only once everyone who stepped out — both NPCs and the
-        // participant, if they crossed — has actually cleared the road.
-        if (!playerInRoad && ((npc0Done && npc1Done && this._timer > 6) || this._timer > 35)) {
+        // Fixed wait, comfortably longer than the addressee's crossing takes
+        // (1.4s delay + ~4s to walk it) — no dependency on their live state.
+        // The AV moves on once that person and the participant (if crossed)
+        // are clear, without waiting to see whether anyone else also goes.
+        if (!playerInRoad && this._timer > 6.5) {
           this.logger.event('npc_crossing_finished');
           this.av.setDisplay('thanks');
           this.sound.playThanks();
-          this.setPhase('acknowledgment', 'AV thanks everyone and continues.');
+          this.setPhase('acknowledgment', 'AV thanks you and prepares to move off.');
         }
         break;
       }
@@ -339,12 +342,43 @@ export class ScenarioRunner {
           this.av.setDisplay('off');
           this.av.setBandState('neutral');
           this.av.targetSpeed = this.approachSpeed;
-          this.setPhase('outcome', 'AV returns to neutral and continues.');
+          this._npc1Started = false;
+          this._emergencyBraked = false;
+          this._resumed = false;
+          this.setPhase('outcome', 'AV moves off.');
         }
         break;
-      case 'outcome':
+      case 'outcome': {
+        // The other NPC watched the first exchange, assumes the same signal
+        // covers them too, and steps out once the AV is visibly rolling —
+        // a fixed cue, not a check on how fast the AV actually is.
+        if (!this._npc1Started && this._timer > 1.0) {
+          this._npc1Started = true;
+          this.npcs[1].startCross(5.6); // near curb -> far curb, off the marked zebra
+          this.logger.event('npc_wrong_addressee_stepped_out');
+          this.onMessage?.('The other person assumes the same signal was meant for them too, and steps out as the AV moves off.');
+        }
+        // Fixed brake trigger: the AV was never tracking this pedestrian —
+        // it reacts late, at a set point after they step out, not by
+        // continuously checking where they currently are.
+        if (!this._emergencyBraked && this._timer > 1.6) {
+          this._emergencyBraked = true;
+          this.av.targetSpeed = 0;
+          this.sound.playHorn();
+          this.logger.event('av_emergency_brake', { reason: 'wrong_addressee_in_path' });
+          this.onMessage?.('⚠ The AV slams the brakes — it was only ever tracking the person who crossed first, not this one. Assuming a broadcast signal is meant for you can be dangerous.');
+        }
+        // Fixed resume: comfortably longer than the second pedestrian needs
+        // to clear (steps out at t=1.0, ~4s to walk it) — again, no
+        // dependency on their live position or state.
+        if (!this._resumed && this._timer > 5.5) {
+          this._resumed = true;
+          this.av.targetSpeed = this.approachSpeed;
+          this.onMessage?.('Clear now — the AV moves off again.');
+        }
         if (this.av.group.position.z > 55) this._finish();
         break;
+      }
     }
   }
 

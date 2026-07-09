@@ -182,10 +182,19 @@ export class NpcPedestrian {
     this.targetX = targetX;
   }
 
-  update(dt) {
+  update(dt, obstacles = []) {
     if (!this.group.visible || this.state !== 'crossing') return;
     const dx = this.targetX - this.group.position.x;
     const dir = Math.sign(dx);
+    // Wait for a genuinely moving vehicle in the way rather than walking
+    // straight through it — this is the only collision handling an NPC
+    // pedestrian gets. A stopped/yielding vehicle is deliberately excluded:
+    // pedestrians don't refuse to walk past a parked or waiting car, and
+    // treating one as a permanent blocker can deadlock a scripted scenario
+    // (the vehicle waiting on the pedestrian, the pedestrian waiting on it).
+    const moving = obstacles.filter((o) => (o.speed ?? 0) > 0.5);
+    const fwd = new THREE.Vector3(dir, 0, 0);
+    if (blockingObstacle(this.group.position, fwd, moving, 2.5, 0.7)) return;
     this.group.position.x += dir * this.speed * dt;
     this.group.rotation.y = Math.atan2(dir, 0);
     this._walkPhase += dt * 6.5;

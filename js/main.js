@@ -502,7 +502,16 @@ function animate() {
   pedestrian.update(dt, moveDir());
   av.update(dt);
   humanCar.update(dt);
-  for (const n of npcs) n.update(dt);
+  // NPC pedestrians have no other collision handling (unlike the player,
+  // and unlike the cyclist/traffic which already avoid everyone) — without
+  // this they walk straight through a moving vehicle crossing their path.
+  // (Only genuinely moving vehicles block them — see NpcPedestrian.update.)
+  const npcVehicleObstacles = [];
+  if (av.group.visible) npcVehicleObstacles.push({ pos: av.group.position, r: 1.9, speed: Math.abs(av.speed) });
+  if (humanCar.group.visible) npcVehicleObstacles.push({ pos: humanCar.group.position, r: 1.9, speed: Math.abs(humanCar.speed) });
+  if (mergingCar.group.visible) npcVehicleObstacles.push({ pos: mergingCar.group.position, r: 1.8, speed: mergingCar.state === 'merging' ? 3 : 0 });
+  for (const c of traffic.cars) npcVehicleObstacles.push({ pos: c.mesh.position, r: c.r ?? 1.8, speed: Math.abs(c.speed) });
+  for (const n of npcs) n.update(dt, npcVehicleObstacles);
 
   // Obstacle lists so nothing clips through anything: the cyclist avoids (or
   // crashes into) everyone, traffic cars brake for everyone.

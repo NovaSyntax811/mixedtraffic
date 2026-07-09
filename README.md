@@ -103,21 +103,27 @@ masking music loop over the AV cues. Both log the active sound volume per run
 required sound-pleasantness rating (1 = very annoying … 7 = very pleasant) to
 the confidence check.
 
-**Scenario 9 — Broadcast Signal (signal-scoping challenge):** several
-pedestrians wait at the crossing — one on the participant's curb, one on the
-opposite curb. The AV runs its full yield sequence once, and *both* NPCs act
-on that same signal, each after their own staggered, human-like reaction
-delay (1.4 s / 2.6 s) rather than stepping off in lockstep. The participant is
-free to cross alongside them. Messages frame the open question directly
-("AV yields once — everyone waiting can go. Is that signal for you too?"),
-so the participant judges whether a single broadcast signal genuinely serves
-several people, including themselves, at once. The AV safely waits until
-everyone who entered the road (either NPC and/or the participant) has
-actually cleared it before thanking everyone and moving on. Logged:
-`npc_crossing_started/finished` (tagged per NPC) plus the standard behavioral
-measures — comparing reaction times and chosen reasons ("the signal" vs. "the
-vehicle stopped") against scenario 2 shows whether people read a broadcast
-signal as personally addressed even when others are visibly acting on it too.
+**Scenario 9 — Broadcast Signal (signal-scoping challenge, with a real
+near-miss):** several pedestrians wait at the crossing — one on the
+participant's curb, one on the opposite curb. The AV's yield is genuinely
+scoped to a single tracked addressee: the NPC on the far curb, right on the
+marked zebra, who crosses ~1.4 s after the cue. The AV moves off again as
+soon as that person (and the participant, if they crossed) is clear — it was
+never watching for anyone else. The second NPC, on the participant's own
+curb, reads the same wave/tone as an invitation for them too and steps out
+*late*, after the AV has already started rolling, at an unmarked point a few
+metres off the zebra. The AV detects them in its path and brakes hard
+(`av_emergency_brake`), with an explicit on-screen warning explaining what
+just happened, before continuing once they're clear. The point is no longer
+just the abstract "who was it for" — it is a concrete demonstration that
+treating a broadcast signal as personally addressed can put you directly in
+the path of a vehicle that was never actually tracking you. Logged:
+`npc_crossing_started` (`addressed: true` for the real addressee),
+`npc_wrong_addressee_stepped_out`, `av_emergency_brake`, plus the standard
+behavioral measures — comparing reaction times and chosen reasons ("the
+signal" vs. "the vehicle stopped") against scenario 2 shows whether people
+read a broadcast signal as personally addressed, and whether they register
+the near-miss as a consequence of that assumption.
 
 **★ Trust Protocol (Story 3):** five back-to-back runs; runs 1–4 are clean
 scenario-2 yields, run 5 silently swaps in the unaddressed-cyclist edge case —
