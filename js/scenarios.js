@@ -37,6 +37,7 @@ export class ScenarioRunner {
     this.cyclist.hide();
     this.mergingCar.hide();
     this.traffic?.clearScripted();
+    if (this.traffic) { this.traffic.maxCars = 3; this.traffic.spawnGapMin = 6; this.traffic.spawnGapRange = 8; }
     this.npcs?.forEach((n) => n.hide());
     this.sound?.stopYieldLoop?.();
     this._timeline = null;
@@ -60,16 +61,22 @@ export class ScenarioRunner {
     this._preroll = PREROLL;
 
     if (scenario === 'training') {
-      // Free-roam training: no staged events, but a FEW ORDINARY CARS drive
-      // around (ambient traffic, max 3) so the world feels alive and crossing
-      // can be practised realistically. They brake for people in the road and
-      // follow normal rules; nothing is scripted. The participant explores
-      // until the session leader ends the run (Stop button). Nothing here is
-      // analysed. update() has no branch for this phase, so the world simply
-      // idles while the player walks around.
+      // Free-roam training: no staged events, but ORDINARY CARS drive around
+      // (ambient traffic, busier than the study scenarios) so the world feels
+      // alive and crossing can be practised realistically. They brake for
+      // people in the road and follow normal rules; nothing is scripted. The
+      // participant explores until the session leader ends the run (Stop
+      // button). Nothing here is analysed. update() has no branch for this
+      // phase, so the world simply idles while the player walks around.
       this._preroll = 0;
       this.traffic?.setEnabled(true); // overrides the walk-like default (off)
       this.traffic?.clearScripted();
+      if (this.traffic) {
+        this.traffic.maxCars = 12;
+        this.traffic.spawnGapMin = 1;
+        this.traffic.spawnGapRange = 2;
+        this.traffic.prefill(9); // busy from frame one, not just after the first spawns trickle in
+      }
       this.av.group.visible = false;
       this.pedestrian.group.position.set(-(LAYOUT.roadWidth / 2 + LAYOUT.sidewalk / 2), 0, 0);
       this.setPhase('training', 'Explore freely: W walks where you look, the mouse turns your head. Walk around, cross the street if you like. Tell the session leader when you feel ready.');

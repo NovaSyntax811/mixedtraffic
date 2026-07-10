@@ -712,6 +712,8 @@ export class TrafficManager {
     this.cars = [];
     this.enabled = true;
     this.maxCars = 3;
+    this.spawnGapMin = 6;   // seconds between ambient spawn attempts (min/range)
+    this.spawnGapRange = 8;
     this._next = 4;
     this._seed = 1234567;
   }
@@ -736,6 +738,34 @@ export class TrafficManager {
     mesh.rotation.y = route.ry;
     this.scene.add(mesh);
     this.cars.push({ mesh, route, cruise: 5 + this._rand() * 3, speed: 0, kind: 'car', ...KIND_SPECS.car });
+  }
+
+  // Fixed, safely-spaced distances-from-start for prefill(): >=25m apart (same
+  // margin _spawn() keeps between cars) and skipping ~70-100, which is where
+  // every route crosses the intersection (ZONE) — so no two prefilled cars
+  // ever start on top of each other or both already inside the crossing.
+  static PREFILL_OFFSETS = [18, 45, 118, 145];
+
+  // Places `count` cars already spread out along the routes (rather than at
+  // the road's edge waiting to be driven in), so the street looks busy the
+  // instant a scenario starts instead of filling up over the first minute.
+  prefill(count) {
+    let placed = 0;
+    for (let slot = 0; slot < TrafficManager.PREFILL_OFFSETS.length && placed < count; slot++) {
+      for (let r = 0; r < ROUTES.length && placed < count; r++) {
+        const route = ROUTES[r];
+        const start = new THREE.Vector3(...route.start);
+        const fwd = new THREE.Vector3(Math.sin(route.ry), 0, Math.cos(route.ry));
+        const traveled = TrafficManager.PREFILL_OFFSETS[slot] + (this._rand() - 0.5) * 6; // small jitter, still well clear of neighbors
+        const mesh = buildCarMesh(CAR_COLORS[Math.floor(this._rand() * CAR_COLORS.length)]);
+        mesh.position.copy(start).addScaledVector(fwd, traveled);
+        mesh.rotation.y = route.ry;
+        this.scene.add(mesh);
+        const cruise = 5 + this._rand() * 3;
+        this.cars.push({ mesh, route, cruise, speed: cruise * 0.6, kind: 'car', ...KIND_SPECS.car });
+        placed++;
+      }
+    }
   }
 
   // Scripted actor for the scenario timelines. Flags:
@@ -783,7 +813,7 @@ export class TrafficManager {
       this._next -= dt;
       if (this._next <= 0 && this.cars.filter((c) => !c.scripted).length < this.maxCars) {
         this._spawn();
-        this._next = 6 + this._rand() * 8;
+        this._next = this.spawnGapMin + this._rand() * this.spawnGapRange;
       }
     }
 
