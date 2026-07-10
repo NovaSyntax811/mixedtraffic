@@ -56,21 +56,23 @@ current scenario without the briefing.
 
 ## Scenario key (researcher only, qualitative study build)
 
-Participants see sequential numbers (Scenario 1 to 5). The JSON log records
+Participants see sequential numbers (Scenario 1 to 4). The JSON log records
 the INTERNAL id per run plus the display label (`label` field), so match logs
 against the internal id column below.
 
 | Display | Internal id (in logs) | Content | RQ |
 |---|---|---|---|
-| Training walk | walk | Walk through town with glowing trigger fields; controls practice, not analysed | Training |
+| Training | training | Free roam, no staged events, no vehicles; controls and world familiarity, not analysed; the session leader ends it with Stop | Training |
 | Scenario 1 | 1 | Human car, no signals at all; only the implicit motion cue | RQ1 |
 | Scenario 2 | 2 | Automated car, full eHMI yield (light band, display, sound) | RQ1 |
 | Scenario 3 | 6 | The AV yields; the honking driver behind it, hidden from the player by the AV, overtakes | RQ3/4 |
 | Scenario 4 | 9 | Several people wait; the yield signal addresses the person opposite | RQ2 |
-| Scenario 5 | 10 | The participant is only walking past; the car stops for them unprompted | RQ3/4 |
 
-Extras (internal 3 unnoticed cyclist, 4 merge signal, 5 busy street) have no
-UI entry in this build; start them from the console via `__sim.beginRun(n)`.
+Extras with no UI entry in this build, start via `__sim.beginRun(id)`:
+internal 3 (unnoticed cyclist), 4 (merge signal), 5 (busy street),
+10 (unprompted stop while only walking past, pulled from the study set) and
+'walk' (the town walk with glowing fields and staged encounters, the former
+training).
 
 The free roam is meant to be run last: the participant takes a walk through a
 larger town (three junctions, distinct districts: cool south, warm brick

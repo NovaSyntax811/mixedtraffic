@@ -59,6 +59,22 @@ export class ScenarioRunner {
     // walk around and get oriented before it starts approaching.
     this._preroll = PREROLL;
 
+    if (scenario === 'training') {
+      // Free-roam training: no staged events, no vehicles at all. The
+      // participant explores the town and the controls until the session
+      // leader ends the run (Stop button) and starts the first scenario.
+      // Purpose: wear off the novelty effect; nothing here is analysed.
+      // update() has no branch for this phase, so the world simply idles
+      // while the player walks around.
+      this._preroll = 0;
+      this.traffic?.setEnabled(false);
+      this.traffic?.clearScripted();
+      this.av.group.visible = false;
+      this.pedestrian.group.position.set(-(LAYOUT.roadWidth / 2 + LAYOUT.sidewalk / 2), 0, 0);
+      this.setPhase('training', 'Explore freely: W walks where you look, the mouse turns your head. Walk around, cross the street if you like. Tell the session leader when you feel ready.');
+      return;
+    }
+
     if (scenario === 'walk' || scenario === 10) {
       // Continuous walk: a single journey north past several encounters, each
       // probing one of the research themes (uncertainty, who the signal is for,

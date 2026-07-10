@@ -5,7 +5,7 @@ import { AV } from './vehicle.js?v=36';
 import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=55';
 import { EHMISound } from './audio.js?v=17';
 import { BehaviorLogger, showConfidenceCheck, showWalkSurvey } from './logger.js?v=16';
-import { ScenarioRunner } from './scenarios.js?v=59';
+import { ScenarioRunner } from './scenarios.js?v=60';
 
 const { scene, camera, renderer, composer, setTimeOfDay } = createScene();
 
@@ -20,8 +20,9 @@ const SCENARIO_LIGHTING = {
   5: 'dusk',         // Mixed traffic — emergency lights pop
   6: 'afternoon',    // Aggressive drivers
   9: 'afternoon',    // Ambiguous signal
-  10: 'afternoon',   // Standalone uncertainty (pedestrian variant)
-  walk: 'afternoon', // Free-roam finale — neutral daylight
+  10: 'afternoon',   // Standalone uncertainty (extra, not in the study set)
+  walk: 'afternoon',     // Town walk with staged encounters (extra)
+  training: 'afternoon', // Free-roam training — neutral daylight
 };
 
 // Briefing shown before each run. DELIBERATELY UNBIASED for the study: each
@@ -39,10 +40,13 @@ const SCENARIO_RECAP = {
   9: { title: 'Scenario 4', lines: [['🚐 An automated car', 'is driving along the main road. It communicates with a light band, a windshield display and sound'], ['🚶 Other people', 'are waiting near the street'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
   // Standalone uncertainty (pedestrian variant): the framing gives the player a
   // reason to walk WITHOUT crossing intent, and no hint that a car will react.
-  10: { title: 'Scenario 5', lines: [['🚶 You', 'are walking up the street to an appointment further ahead (W to walk where you look, mouse to turn)'], ['🛣 The street', 'everyday traffic may pass while you walk'], ['🤝 Your call', 'behave as you naturally would']] },
+  10: { title: 'Extra D', lines: [['🚶 You', 'are walking up the street to an appointment further ahead (W to walk where you look, mouse to turn)'], ['🛣 The street', 'everyday traffic may pass while you walk'], ['🤝 Your call', 'behave as you naturally would']] },
   // Free-roam finale: instructions only, no hint that situations are staged
   // along the way or which themes they carry.
-  walk: { title: 'Training walk', lines: [['🚶 You', 'take a walk through town: W to walk where you look, mouse to turn'], ['🟦 Glowing fields', 'mark where your walk continues; step into one and see what happens'], ['🤝 Crossing is your call', 'cross the street whenever you choose, on whichever side you like']] },
+  walk: { title: 'Extra E', lines: [['🚶 You', 'take a walk through town: W to walk where you look, mouse to turn'], ['🟦 Glowing fields', 'mark where your walk continues; step into one and see what happens'], ['🤝 Crossing is your call', 'cross the street whenever you choose, on whichever side you like']] },
+  // Free-roam training: short, nothing staged, nothing analysed. Purpose is
+  // only controls and world familiarity before the first scenario.
+  training: { title: 'Training', lines: [['🚶 You', 'explore the little town freely: W walks where you look, the mouse turns your head'], ['🛣 No task yet', 'walk around, cross the street if you like, get comfortable with the controls'], ['✅ When you feel ready', 'tell the session leader and the first scenario begins']] },
 };
 // Show the centered "who's who" briefing for a scenario; the run starts when
 // the user confirms (recapStart). Falls back to running directly if there is
@@ -244,16 +248,17 @@ const $ = (id) => document.getElementById(id);
 
 // ---------- Scenario menu + study modes ----------
 // Participant-facing numbering is SEQUENTIAL over the session set (Scenario 1
-// to 5), while the internal ids stay unchanged: display 3 = internal 6,
-// display 4 = internal 9, display 5 = internal 10. The JSON log records the
-// internal id AND the display label per run (nextMeta in beginRun), so the
-// data is unambiguous. The unused extras carry letters to avoid any clash
-// with the sequential numbers.
+// to 4), while the internal ids stay unchanged: display 3 = internal 6,
+// display 4 = internal 9. The JSON log records the internal id AND the
+// display label per run (nextMeta in beginRun), so the data is unambiguous.
+// Everything not in the session set carries a letter (Extra A to E) to avoid
+// any clash with the sequential numbers.
 const SCENARIO_LABELS = {
   1: 'Scenario 1', 2: 'Scenario 2', 6: 'Scenario 3',
-  9: 'Scenario 4', 10: 'Scenario 5',
+  9: 'Scenario 4',
   3: 'Extra A', 4: 'Extra B', 5: 'Extra C',
-  walk: 'Training walk',
+  10: 'Extra D', walk: 'Extra E',
+  training: 'Training',
 };
 let selectedScenario = 1;
 let protocol = null; // { step, total } while the trust protocol is running
@@ -271,9 +276,10 @@ function beginRun(scenario, { quietEdge = false, protocolStep = null } = {}) {
   // The continuous walk keeps traffic light (only each station's scripted
   // actors), starts the player in first person facing up the street, and clears
   // any leftover ambiguous-scenario NPCs. Other scenarios honour the toggle.
-  // Scenario 10 (standalone uncertainty) reuses the walk machinery, so it gets
-  // the same setup: no ambient traffic, first person facing up the street.
-  const walkLike = scenario === 'walk' || scenario === 10;
+  // The walk-based modes (town walk, standalone uncertainty, free-roam
+  // training) share the same setup: no ambient traffic, first person facing
+  // up the street.
+  const walkLike = scenario === 'walk' || scenario === 10 || scenario === 'training';
   traffic.setEnabled(walkLike ? false : $('toggleTraffic').checked);
   if (walkLike) {
     setCamera('pedestrian');
