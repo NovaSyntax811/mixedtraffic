@@ -1,11 +1,11 @@
 // Entry point: wires scene, actors, audio, scenarios, cameras, input, UI, logging.
 import * as THREE from 'three';
-import { createScene, LAYOUT } from './scene.js?v=47';
+import { createScene, LAYOUT } from './scene.js?v=48';
 import { AV } from './vehicle.js?v=36';
-import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=45';
+import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=55';
 import { EHMISound } from './audio.js?v=17';
-import { BehaviorLogger, showConfidenceCheck } from './logger.js?v=15';
-import { ScenarioRunner } from './scenarios.js?v=52';
+import { BehaviorLogger, showConfidenceCheck, showWalkSurvey } from './logger.js?v=16';
+import { ScenarioRunner } from './scenarios.js?v=61';
 
 const { scene, camera, renderer, composer, setTimeOfDay } = createScene();
 
@@ -13,26 +13,40 @@ const { scene, camera, renderer, composer, setTimeOfDay } = createScene();
 // distinct. Night is reserved for the audio-only study (screen is blacked
 // out anyway); the eHMI glow reads best at dusk for the mixed-traffic scene.
 const SCENARIO_LIGHTING = {
-  1: 'day',        // Baseline — clear daylight, easy to read
-  2: 'afternoon',  // Pedestrian crossing
-  3: 'overcast',   // Edge case — flat, slightly tense
-  4: 'day',        // Merge
-  5: 'dusk',       // Mixed traffic — emergency lights pop
-  6: 'afternoon',  // Aggressive drivers
-  9: 'afternoon',  // Ambiguous signal
+  1: 'day',          // Baseline — clear daylight, easy to read
+  2: 'afternoon',    // Pedestrian crossing
+  3: 'overcast',     // Edge case — flat, slightly tense
+  4: 'day',          // Merge
+  5: 'dusk',         // Mixed traffic — emergency lights pop
+  6: 'afternoon',    // Aggressive drivers
+  9: 'afternoon',    // Ambiguous signal
+  10: 'afternoon',   // Standalone uncertainty (extra, not in the study set)
+  walk: 'afternoon',     // Town walk with staged encounters (extra)
+  training: 'afternoon', // Free-roam training — neutral daylight
 };
 
-// Quick "who's who" briefing shown at the start of each scenario, so the
-// named characters and their behaviours don't have to be remembered.
+// Briefing shown before each run. DELIBERATELY UNBIASED for the study: each
+// briefing only introduces who is present, never what will happen, which theme
+// a scenario probes, or how the signals should be read. Scenarios 2, 3 and 6
+// share an identical briefing on purpose — any difference between them would
+// itself be a cue that "something is different this time".
 const SCENARIO_RECAP = {
-  1: { title: 'A car with no signals', lines: [['🚗 Ordinary car', 'driven by a person, with no signals at all'], ['🚶 You', 'there is no crossing here, so decide for yourself if and when to cross']] },
-  2: { title: 'A car that lets you cross', lines: [['🚐 Automated car', 'communicates with a light band, a windshield display and sound'], ['🤝 No marked crossing', 'you have no right of way, so if the car stops it is letting you cross by choice'], ['🚶 You', 'read its signals and cross when you feel safe']] },
-  3: { title: 'The car missed a cyclist', lines: [['🚐 The car', 'detects you and yields with its light band, the wave and a tone'], ['🚴 Cyclist', 'races up from behind and will NOT stop for you, because the car never saw it'], ['🚶 You', 'the signal is honest, but it only speaks for that one car, so keep watching']] },
-  4: { title: 'A signal for the other car', lines: [['🚐 The car', 'yields and shows "After you 🚗", addressed to the other driver'], ['🚗 Other driver', 'waits at the side street to merge in'], ['🚶 You', 'the signal is for the car, so decide whether it is an invitation for you too']] },
-  5: { title: 'A busy intersection', lines: [['🚌 Bus, 🚚 truck, 🚴 cyclist', 'ordinary traffic, each behaving differently'], ['🚑 Ambulance', 'siren on, so everyone pulls over for it'], ['🚶 You', 'cross amid the chaos when you judge it safe']] },
-  6: { title: 'Impatient drivers', lines: [['🚐 The cautious car', 'yields for you, correctly'], ['🚗 Impatient driver', 'tailgates, honks, and overtakes right across your path'], ['🚶 You', 'the car is safe, the others are not']] },
-  9: { title: 'Is the signal for you?', lines: [['🚐 The car', 'yields and shows 👋'], ['🚶 🚶 Other people', 'also waiting, and one of them may be who the signal is for'], ['🚶 You', 'decide whether the signal is meant for you']] },
-  walk: { title: 'A walk through town', lines: [['🚶 You', 'walk up the street with W and turn with the mouse. You stroll, you do not stay in one place'], ['🚐 An automated car', 'turns up at a few points along the way and reacts to where you are'], ['🤝 Crossing is your call', 'there are no marked crossings, so each time decide whether to cross or just carry on'], ['➡ Keep going', 'after each moment, walk on up the street and the next one comes to you']] },
+  1: { title: 'Scenario 1', lines: [['🚗 A car', 'is driving along the main road'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
+  2: { title: 'Scenario 2', lines: [['🚐 An automated car', 'is driving along the main road. It communicates with a light band, a windshield display and sound'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
+  3: { title: 'Extra A', lines: [['🚐 An automated car', 'is driving along the main road. It communicates with a light band, a windshield display and sound'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
+  4: { title: 'Extra B', lines: [['🚐 An automated car', 'is driving along the main road. It communicates with a light band, a windshield display and sound'], ['🚗 Another car', 'is waiting at the side street'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
+  5: { title: 'Extra C', lines: [['🚌 Traffic', 'buses, trucks and bikes share the street'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
+  6: { title: 'Scenario 3', lines: [['🚐 An automated car', 'is driving along the main road. It communicates with a light band, a windshield display and sound'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
+  9: { title: 'Scenario 4', lines: [['🚐 An automated car', 'is driving along the main road. It communicates with a light band, a windshield display and sound'], ['🚶 Other people', 'are waiting near the street'], ['🚶 You', 'want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross']] },
+  // Standalone uncertainty (pedestrian variant): the framing gives the player a
+  // reason to walk WITHOUT crossing intent, and no hint that a car will react.
+  10: { title: 'Extra D', lines: [['🚶 You', 'are walking up the street to an appointment further ahead (W to walk where you look, mouse to turn)'], ['🛣 The street', 'everyday traffic may pass while you walk'], ['🤝 Your call', 'behave as you naturally would']] },
+  // Free-roam finale: instructions only, no hint that situations are staged
+  // along the way or which themes they carry.
+  walk: { title: 'Extra E', lines: [['🚶 You', 'take a walk through town: W to walk where you look, mouse to turn'], ['🟦 Glowing fields', 'mark where your walk continues; step into one and see what happens'], ['🤝 Crossing is your call', 'cross the street whenever you choose, on whichever side you like']] },
+  // Free-roam training: short, nothing staged, nothing analysed. Purpose is
+  // only controls and world familiarity before the first scenario.
+  training: { title: 'Training', lines: [['🚶 You', 'explore the little town freely: W walks where you look, the mouse turns your head'], ['🚗 Ordinary traffic', 'a few cars drive around; behave as you naturally would'], ['🛣 No task yet', 'walk around, cross the street if you like, get comfortable with the controls'], ['✅ When you feel ready', 'tell the session leader and the first scenario begins']] },
 };
 // Show the centered "who's who" briefing for a scenario; the run starts when
 // the user confirms (recapStart). Falls back to running directly if there is
@@ -71,11 +85,26 @@ const runner = new ScenarioRunner({
     setBlackout(false);             // restore vision for the dialog (audio-only study)
     sound.stopDistractor();
     sound.audioOnlyBoost = false;
-    const answers = await showConfidenceCheck(!!run?.crossed);
-    logger.completeRun(run, answers);
-    hudMsg.textContent = 'Logged. Pick a scenario and press Start for another run.';
+    // The confidence check can be switched off in the admin menu (e.g. when a
+    // focus-group session runs long and the probes happen verbally instead).
+    if ($('toggleConfidence').checked) {
+      const answers = await showConfidenceCheck(!!run?.crossed);
+      logger.completeRun(run, answers);
+    } else {
+      logger.completeRun(run, null);
+    }
+    hudMsg.textContent = 'Thank you. You can walk around, the next situation will start in a moment.';
   },
 });
+
+// Free-walk mini surveys: after each walk situation, ask the short
+// domain-targeted questions (unless the researcher switched checks off for a
+// verbal session). Answers land in the walk run's event log.
+runner.onStationSurvey = async (kind) => {
+  if (!$('toggleConfidence').checked) return;
+  const answers = await showWalkSurvey(kind);
+  if (answers) logger.event('walk_survey', { kind, ...answers });
+};
 
 // ---------- Input ----------
 const keys = new Set();
@@ -218,11 +247,18 @@ function updateCamera(dt) {
 const $ = (id) => document.getElementById(id);
 
 // ---------- Scenario menu + study modes ----------
+// Participant-facing numbering is SEQUENTIAL over the session set (Scenario 1
+// to 4), while the internal ids stay unchanged: display 3 = internal 6,
+// display 4 = internal 9. The JSON log records the internal id AND the
+// display label per run (nextMeta in beginRun), so the data is unambiguous.
+// Everything not in the session set carries a letter (Extra A to E) to avoid
+// any clash with the sequential numbers.
 const SCENARIO_LABELS = {
-  1: '1 · A car with no signals', 2: '2 · A car that lets you cross', 3: '3 · The car missed a cyclist',
-  4: '4 · A signal for the other car', 5: '5 · A busy intersection', 6: '6 · Impatient drivers',
-  9: '9 · Is the signal for you?',
-  walk: '★ A walk through town',
+  1: 'Scenario 1', 2: 'Scenario 2', 6: 'Scenario 3',
+  9: 'Scenario 4',
+  3: 'Extra A', 4: 'Extra B', 5: 'Extra C',
+  10: 'Extra D', walk: 'Extra E',
+  training: 'Training',
 };
 let selectedScenario = 1;
 let protocol = null; // { step, total } while the trust protocol is running
@@ -240,8 +276,12 @@ function beginRun(scenario, { quietEdge = false, protocolStep = null } = {}) {
   // The continuous walk keeps traffic light (only each station's scripted
   // actors), starts the player in first person facing up the street, and clears
   // any leftover ambiguous-scenario NPCs. Other scenarios honour the toggle.
-  traffic.setEnabled(scenario === 'walk' ? false : $('toggleTraffic').checked);
-  if (scenario === 'walk') {
+  // The walk-based modes (town walk, standalone uncertainty, free-roam
+  // training) share the same setup: no ambient traffic, first person facing
+  // up the street.
+  const walkLike = scenario === 'walk' || scenario === 10 || scenario === 'training';
+  traffic.setEnabled(walkLike ? false : $('toggleTraffic').checked);
+  if (walkLike) {
     setCamera('pedestrian');
     fpvYaw = 0;        // face north (+Z), so W walks up the street
     fpvPitch = 0;
@@ -250,6 +290,7 @@ function beginRun(scenario, { quietEdge = false, protocolStep = null } = {}) {
   $('recap').classList.add('hidden'); // briefing (if any) already confirmed
 
   logger.nextMeta = {
+    label: SCENARIO_LABELS[scenario], // display name; run.scenario keeps the internal id
     soundVolume: sound.volume,
     ...(scenario === 9 ? { mode: 'ambiguous_signal' } : {}),
     ...(protocolStep !== null ? { protocolStep } : {}),
@@ -301,18 +342,12 @@ $('introStart').addEventListener('click', () => {
   $('scenarioMenu').classList.remove('hidden');
 });
 
+// Public scenario menu (☰). Its cards are as debiased as everything else:
+// neutral titles, one shared description for the study scenarios, nothing
+// that reveals what will happen.
 $('menuBtn').addEventListener('click', () => $('scenarioMenu').classList.remove('hidden'));
 $('menuClose').addEventListener('click', () => $('scenarioMenu').classList.add('hidden'));
-
-// ---------- Admin menu (researcher controls + recording) ----------
-function toggleAdmin(force) {
-  const m = $('adminMenu');
-  const show = force ?? m.classList.contains('hidden');
-  m.classList.toggle('hidden', !show);
-}
-$('adminBtn').addEventListener('click', () => toggleAdmin());
-$('adminClose').addEventListener('click', () => toggleAdmin(false));
-document.querySelectorAll('.scenario-card').forEach((card) => {
+document.querySelectorAll('#scenarioMenu .scenario-card').forEach((card) => {
   card.addEventListener('click', () => {
     const v = card.dataset.scenario;
     selectedScenario = /^\d+$/.test(v) ? parseInt(v, 10) : v;
@@ -322,6 +357,34 @@ document.querySelectorAll('.scenario-card').forEach((card) => {
   });
 });
 
+// The admin menu keeps its own start buttons for moderated sessions.
+document.querySelectorAll('#adminMenu [data-scn]').forEach((b) => {
+  b.addEventListener('click', () => {
+    const v = b.dataset.scn;
+    selectedScenario = /^\d+$/.test(v) ? parseInt(v, 10) : v; // 'walk' stays a string id
+    $('scenarioLabel').textContent = SCENARIO_LABELS[selectedScenario];
+    toggleAdmin(false);
+    startSelected();
+  });
+});
+
+// Moderator control: end the current scenario immediately (back to idle, the
+// participant can roam) without starting a new one.
+$('stopBtn').addEventListener('click', () => {
+  setBlackout(false);
+  sound.stopDistractor();
+  runner.reset();
+  toggleAdmin(false);
+});
+
+// ---------- Admin menu (researcher controls + recording) ----------
+function toggleAdmin(force) {
+  const m = $('adminMenu');
+  const show = force ?? m.classList.contains('hidden');
+  m.classList.toggle('hidden', !show);
+}
+$('adminBtn').addEventListener('click', () => toggleAdmin());
+$('adminClose').addEventListener('click', () => toggleAdmin(false));
 // Restart re-runs the current scenario from the beginning (no briefing).
 // Picking a scenario from the menu is the only way to start a new one.
 $('restartBtn').addEventListener('click', () => {
@@ -387,7 +450,9 @@ function checkPedestrianCollisions() {
   const boxes = [];
   if (av.group.visible) boxes.push({ name: 'AV', pos: av.group.position, rotY: av.group.rotation.y, hw: 1.05, hl: 2.25, speed: Math.abs(av.speed) });
   if (humanCar.group.visible) boxes.push({ name: 'car', pos: humanCar.group.position, rotY: humanCar.group.rotation.y, hw: 0.95, hl: 2.05, speed: Math.abs(humanCar.speed) });
-  if (mergingCar.group.visible) boxes.push({ name: 'car', pos: mergingCar.group.position, rotY: mergingCar.group.rotation.y, hw: 0.95, hl: 2.05, speed: mergingCar.state === 'merging' ? 3 : 0 });
+  // Speed counts only when the merging car actually advances this frame: a
+  // merging car that has braked for someone must block them, not "hit" them.
+  if (mergingCar.group.visible) boxes.push({ name: 'car', pos: mergingCar.group.position, rotY: mergingCar.group.rotation.y, hw: 0.95, hl: 2.05, speed: mergingCar.state === 'merging' && mergingCar.moving ? 3 : 0 });
   for (const c of traffic.cars) boxes.push({ name: c.kind ?? 'car', pos: c.mesh.position, rotY: c.mesh.rotation.y, hw: c.hw ?? 0.95, hl: c.hl ?? 2.05, speed: Math.abs(c.speed) });
 
   for (const v of boxes) {
@@ -420,7 +485,7 @@ function checkVehicleCollisions() {
   const bodies = [];
   if (av.group.visible) bodies.push({ name: 'AV', g: av.group, hl: 2.05, speed: Math.abs(av.speed), stop: () => { av.targetSpeed = 0; av.speed = 0; } });
   if (humanCar.group.visible) bodies.push({ name: 'car', g: humanCar.group, hl: 2.05, speed: Math.abs(humanCar.speed), stop: () => { humanCar.targetSpeed = 0; humanCar.speed = 0; } });
-  if (mergingCar.group.visible) bodies.push({ name: 'merging car', g: mergingCar.group, hl: 2.05, speed: mergingCar.state === 'merging' ? 3 : 0, stop: () => { mergingCar.state = 'waiting'; } });
+  if (mergingCar.group.visible) bodies.push({ name: 'merging car', g: mergingCar.group, hl: 2.05, speed: mergingCar.state === 'merging' && mergingCar.moving ? 3 : 0, stop: () => { mergingCar.state = 'waiting'; } });
   // Scripted aggressive cars (honking tailgater / oncoming) perform a
   // choreographed near-miss overtake into the oncoming lane — that is the
   // point of the scenario. They must not register as a car–car accident
@@ -470,7 +535,8 @@ traffic.onHonk = (car) => {
 };
 traffic.onOvertake = (car) => {
   logger.event('aggressive_overtake_started', { kind: car.kind });
-  hudMsg.textContent = '⚠ The impatient driver is overtaking the yielding AV!';
+  // No HUD warning: the horn and the swerving car are the only cues, so the
+  // participant's own attention (not a caption) decides whether they notice.
 };
 
 // Collision / hard-brake events from the cyclist (scenario 3 edge case)
@@ -494,6 +560,39 @@ const clock = new THREE.Clock();
 const ROAD_HALF = LAYOUT.roadWidth / 2;
 let sirenWasActive = false;
 let lastLookingAtVehicle = false;
+
+// ---------- Free-roam trigger fields ----------
+// Logic adapted from Julius's branch: between encounters a pulsing field marks
+// where to go next; stepping into it starts the next situation. One field on
+// EACH pavement, so after crossing at a station the player can carry on up
+// whichever side they ended on (side changes stay supported).
+function buildTriggerZone(x) {
+  const g = new THREE.Group();
+  const fillMat = new THREE.MeshBasicMaterial({ color: 0x00d8ff, transparent: true, opacity: 0.3, depthWrite: false });
+  const fill = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 3.0), fillMat);
+  fill.rotation.x = -Math.PI / 2;
+  fill.position.y = 0.01;
+  g.add(fill);
+  const borderPts = [
+    new THREE.Vector3(-1.3, 0, -1.5), new THREE.Vector3(1.3, 0, -1.5),
+    new THREE.Vector3(1.3, 0, 1.5), new THREE.Vector3(-1.3, 0, 1.5),
+    new THREE.Vector3(-1.3, 0, -1.5),
+  ];
+  const borderMat = new THREE.LineBasicMaterial({ color: 0x00d8ff });
+  const border = new THREE.Line(new THREE.BufferGeometry().setFromPoints(borderPts), borderMat);
+  border.position.y = 0.02;
+  g.add(border);
+  const zonePt = new THREE.PointLight(0x00d8ff, 0, 7, 2);
+  zonePt.position.set(0, 1.5, 0);
+  g.add(zonePt);
+  g.position.set(x, 0, 0);
+  g.visible = false;
+  scene.add(g);
+  return { g, fillMat, borderMat, zonePt };
+}
+const ZONE_X = LAYOUT.roadWidth / 2 + 1.5; // pavement centre on either side
+const triggerZones = [buildTriggerZone(-ZONE_X), buildTriggerZone(ZONE_X)];
+let zoneElapsed = 0;
 
 function animate() {
   requestAnimationFrame(animate);
@@ -542,6 +641,32 @@ function animate() {
   for (const n of npcs) if (n.group.visible) pedObstacles.push({ pos: n.group.position, r: 0.8, name: 'pedestrian' });
   mergingCar.update(dt, pedObstacles);
   runner.update(dt);
+
+  // Free-roam trigger fields: pulse while the walk waits for the player, and
+  // start the next encounter when they step into either kerbside field.
+  {
+    const awaitZ = runner.walkAwaitZ ?? null;
+    const zonesActive = awaitZ !== null && runner.running;
+    for (const zn of triggerZones) zn.g.visible = zonesActive;
+    if (zonesActive) {
+      zoneElapsed += dt;
+      const beat = Math.pow(0.5 + 0.5 * Math.sin(zoneElapsed * Math.PI * 2.5), 3);
+      const bright = 1.0 + 3.5 * beat;
+      for (const zn of triggerZones) {
+        zn.g.position.z = awaitZ;
+        zn.fillMat.opacity = 0.08 + 0.38 * beat;
+        zn.borderMat.color.setRGB(0, 0.85 * bright, bright);
+        zn.zonePt.intensity = 7 * beat;
+      }
+      if (Math.abs(Math.abs(p.x) - ZONE_X) < 1.4 && Math.abs(p.z - awaitZ) < 1.6) {
+        runner.walkEnterZone();
+      }
+    } else {
+      zoneElapsed = 0;
+      for (const zn of triggerZones) zn.zonePt.intensity = 0;
+    }
+  }
+
   checkPedestrianCollisions();
   checkVehicleCollisions();
   updateCamera(dt);
@@ -563,7 +688,7 @@ function animate() {
     }
   }
   lastLookingAtVehicle = lookingAtVehicle;
-  logger.tick(inRoad, pedestrian.moving, avDist, lookingAtVehicle, dt * 1000);
+  logger.tick(inRoad, pedestrian.moving, avDist, lookingAtVehicle, dt * 1000, Math.abs(p.x) - ROAD_HALF);
 
   // Sound update with camera-relative panning
   const camRight = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);

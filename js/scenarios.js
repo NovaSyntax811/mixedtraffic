@@ -1,6 +1,6 @@
 // Scenario state machines, following the interaction arc:
 // Detection -> Decision -> Action (signal) -> Acknowledgment -> Outcome
-import { LAYOUT } from './scene.js?v=47';
+import { LAYOUT } from './scene.js?v=48';
 
 const ZEBRA = LAYOUT.zebraZ;
 const PREROLL = 5;       // short opening hold: the car waits a few seconds so the
@@ -45,7 +45,9 @@ export class ScenarioRunner {
     this.quietEdge = false;
     this._stillTimer = 0;
     this._dynamicStopZ = null;
-    this.setPhase('idle', 'Press Start, then decide when to cross.');
+    this.walkAwaitZ = null; // z of the glowing field the walk is waiting at (null = none)
+    this._autoStations = false; // scenario 10: encounters arise while walking, no fields
+    this.setPhase('idle', 'You can walk around freely. The next situation will start in a moment.');
   }
 
   start(scenario) {
@@ -57,36 +59,74 @@ export class ScenarioRunner {
     // walk around and get oriented before it starts approaching.
     this._preroll = PREROLL;
 
-    if (scenario === 'walk') {
+    if (scenario === 'training') {
+      // Free-roam training: no staged events, but a FEW ORDINARY CARS drive
+      // around (ambient traffic, max 3) so the world feels alive and crossing
+      // can be practised realistically. They brake for people in the road and
+      // follow normal rules; nothing is scripted. The participant explores
+      // until the session leader ends the run (Stop button). Nothing here is
+      // analysed. update() has no branch for this phase, so the world simply
+      // idles while the player walks around.
+      this._preroll = 0;
+      this.traffic?.setEnabled(true); // overrides the walk-like default (off)
+      this.traffic?.clearScripted();
+      this.av.group.visible = false;
+      this.pedestrian.group.position.set(-(LAYOUT.roadWidth / 2 + LAYOUT.sidewalk / 2), 0, 0);
+      this.setPhase('training', 'Explore freely: W walks where you look, the mouse turns your head. Walk around, cross the street if you like. Tell the session leader when you feel ready.');
+      return;
+    }
+
+    if (scenario === 'walk' || scenario === 10) {
       // Continuous walk: a single journey north past several encounters, each
       // probing one of the research themes (uncertainty, who the signal is for,
       // negotiation, and scaling to several road users). Traffic is kept light:
       // only the scripted actors of the current station appear.
+      // Scenario 10 reuses this machinery as the STANDALONE uncertainty
+      // situation (pedestrian variant): one encounter that arises naturally
+      // while walking, no glowing fields, run ends after it.
       this._preroll = 0;
       this.traffic?.setEnabled(false);
       this.traffic?.clearScripted();
       this.av.group.visible = false;
       this.pedestrian.group.position.set(-(LAYOUT.roadWidth / 2 + LAYOUT.sidewalk / 2), 0, 0);
+      // Station spacing sets the walk's pacing: ~26 m between crossings keeps a
+      // short breather between encounters without long empty stretches. Tune the
+      // z values here after playtests.
+      // Intros only state what is visibly there; outros never pose the domain
+      // question (that is the moderator's job in the focus group). The `kind`
+      // is for the log only and must never reach the screen.
+      // Stations sit in different districts of the town (mid-block south, past
+      // the leafy junction B, warm mid-block, past the bus-stop junction C).
+      // minStop keeps a reactive stop from resting the car inside a junction
+      // (B spans z 40..48, C spans 88..96; nose >= edge + 5 clears the body).
       this._walkStations = [
         { kind: 'uncertainty', z: 26, maxWait: 9,
           intro: 'A car is coming up the street. You are just walking here.',
-          outro: 'It stopped for you anyway. Did you actually want to cross, or did it misread you?' },
-        { kind: 'targeted', z: 54, maxWait: 13,
+          outro: 'The car drives on.' },
+        { kind: 'targeted', z: 56, maxWait: 13, minStop: 53,
           intro: 'Someone is waiting on the far pavement as a car approaches.',
-          outro: 'The car gave way. Was that signal for you, or for the person opposite?' },
-        { kind: 'negotiation', z: 82, maxWait: 13,
-          intro: 'A car approaches, with an impatient one close behind it.',
-          outro: 'The first car gave way, but the driver behind would not wait.' },
-        { kind: 'scalability', z: 110, maxWait: 14,
+          outro: 'The car drives on.' },
+        { kind: 'negotiation', z: 78, maxWait: 13,
+          intro: 'Two cars are coming up the street.',
+          outro: 'The cars drive on.' },
+        { kind: 'scalability', z: 104, maxWait: 14, minStop: 101,
           intro: 'People are waiting on both sides of the street as a car comes.',
-          outro: 'One car, several people. Who was its signal really meant for?' },
+          outro: 'The car drives on.' },
       ];
+      if (scenario === 10) {
+        this._autoStations = true;
+        this._walkStations = [{ kind: 'uncertainty', z: 34, maxWait: 9,
+          intro: 'A car is coming up the street. You are just walking here.',
+          outro: 'The car drives on.' }];
+      }
       this._walkIndex = 0;
       this._walkPhase = 'walking';
       this._stationPhase = null;
       this._walkHintShown = false;
       this._walkDone = false;
-      this.setPhase('walking', 'Walk up the street with W (turn with the mouse). Keep going, situations come to you. Cross whenever you choose.');
+      this.setPhase('walking', scenario === 10
+        ? 'Walk up the street along the pavement (W to walk where you look, mouse to turn).'
+        : 'Take a walk through town (W to walk where you look, mouse to turn). Walk into the glowing field on the pavement to begin.');
       return;
     }
 
@@ -97,7 +137,7 @@ export class ScenarioRunner {
       this.av.group.visible = false;
       this.humanCar.spawn();
       this.humanCar.targetSpeed = this.approachSpeed;
-      this.setPhase('approach', 'An ordinary car is approaching, with no crossing here. Will it let you cross? (W/↑)');
+      this.setPhase('approach', 'A car is approaching. There is no marked crossing here, so decide for yourself if and when to cross (W/↑).');
       return;
     }
 
@@ -111,7 +151,7 @@ export class ScenarioRunner {
       // (the default curb spot sits right on the car's path). The car still
       // waits rather than crashes if the player walks into its way.
       this.pedestrian.group.position.set(-5.5, 0, -7);
-      this.setPhase('approach', 'AV approaching. A car waits to merge from the left. Watch the interaction.');
+      this.setPhase('approach', 'A car is approaching on the main road, and another waits at the side street. Decide for yourself if and when to cross (W/↑).');
     } else if (scenario === 5) {
       // Mixed-traffic chaos: bus, truck, side-street cyclist, and an
       // emergency vehicle everyone has to yield to. Actors behave differently.
@@ -132,7 +172,7 @@ export class ScenarioRunner {
         },
         { t: 9.0, fn: () => this.traffic.spawnScripted({ kind: 'car', route: 'west', offset: 60, cruise: 7 }) },
       ];
-      this.setPhase('approach', 'Mixed traffic: bus, truck, cyclist… Cross when you feel safe (W/↑).');
+      this.setPhase('approach', 'A busy street. Decide for yourself if and when to cross (W/↑).');
     } else if (scenario === 6) {
       // Aggressive drivers, unhappy with the cautious AV: a tailgater honks
       // and eventually overtakes the yielding AV; oncoming traffic creeps
@@ -142,12 +182,13 @@ export class ScenarioRunner {
           t: 0.3, fn: () => {
             this.traffic.spawnScripted({ kind: 'car', route: 'northAV', offset: 76, cruise: 13, color: 0x1c1c20, honkWhenBlocked: true, overtakeAV: true, ignoreZebra: true, patience: 2.4 });
             this.logger.event('tailgater_spawned');
-            this.onMessage?.('An impatient driver is tailgating the AV…');
+            // No HUD announcement: the honking and the car itself are the cue.
+            // Naming the driver "impatient" would hand the participant the theme.
           },
         },
         { t: 4.0, fn: () => this.traffic.spawnScripted({ kind: 'car', route: 'south', offset: 55, cruise: 9, honkWhenBlocked: true, ignoreZebra: true }) },
       ];
-      this.setPhase('approach', 'Aggressive drivers who are unhappy with the cautious AV. Cross carefully (W/↑).');
+      this.setPhase('approach', 'A car is approaching. There is no marked crossing here, so decide for yourself if and when to cross (W/↑).');
     } else if (scenario === 9) {
       // Ambiguous signal (signal-scoping challenge): several pedestrians wait
       // at the crossing. The AV's yield signal is actually addressed to the
@@ -155,9 +196,9 @@ export class ScenarioRunner {
       // whether the signal applies to them too.
       this.npcs?.[0]?.place(5.5, ZEBRA, -Math.PI / 2);     // far (east) curb — the real addressee
       this.npcs?.[1]?.place(-5.5, ZEBRA + 3, Math.PI / 2); // same curb as the player, a bit north
-      this.setPhase('approach', 'Several people are waiting to cross here. Decide for yourself (W/↑).');
+      this.setPhase('approach', 'A car is approaching, and other people are waiting nearby. Decide for yourself if and when to cross (W/↑).');
     } else {
-      this.setPhase('approach', 'An AV is approaching, with no marked crossing here. See whether it yields for you (W/↑).');
+      this.setPhase('approach', 'A car is approaching. There is no marked crossing here, so decide for yourself if and when to cross (W/↑).');
     }
   }
 
@@ -169,7 +210,7 @@ export class ScenarioRunner {
   // lets the person wait anywhere along the kerb and have the car respond to
   // them, not to a predetermined crossing point.
   _updatePedestrianDetection(dt) {
-    if (this.scenario === 1 || this.scenario === 4 || this.scenario === 'walk') return;
+    if (this.scenario === 1 || this.scenario === 4 || this.scenario === 'walk' || this.scenario === 10) return;
     // Once the AV has committed to its stop (action phase onward), freeze the
     // target so it does not chase the pedestrian as they step into the road.
     if (this.phase !== 'approach' && this.phase !== 'detection') return;
@@ -260,7 +301,7 @@ export class ScenarioRunner {
       return;
     }
 
-    if (this.scenario === 'walk') this._updateWalk(dt);
+    if (this.scenario === 'walk' || this.scenario === 10) this._updateWalk(dt);
     else if (this.scenario === 4) this._updateMerge(dt);
     else if (this.scenario === 1) this._updateBaseline(dt);
     else if (this.scenario === 9) this._updateAmbiguous(dt);
@@ -278,7 +319,7 @@ export class ScenarioRunner {
         if (d < 42) {
           this.av.setBandState('assessing');
           this.av.setDisplay('detecting');
-          this.setPhase('detection', 'AV detected pedestrians (yellow band + eye icon).');
+          this.setPhase('detection'); // no narration: the participant reads the signals themselves
         }
         break;
       case 'detection': {
@@ -291,7 +332,7 @@ export class ScenarioRunner {
           this.sound.playGoAhead();
           this.logger.signalOnset();
           this._npcDelay = 1.6; // the addressee reacts shortly after the signal
-          this.setPhase('action', 'AV yields, but for whom? Decide for yourself.');
+          this.setPhase('action'); // silent: naming the ambiguity would answer the study question
         }
         break;
       }
@@ -311,7 +352,7 @@ export class ScenarioRunner {
           this.logger.event('npc_crossing_finished');
           this.av.setDisplay('thanks');
           this.sound.playThanks();
-          this.setPhase('acknowledgment', 'AV thanks you and continues.');
+          this.setPhase('acknowledgment');
         }
         break;
       }
@@ -320,7 +361,7 @@ export class ScenarioRunner {
           this.av.setDisplay('off');
           this.av.setBandState('neutral');
           this.av.targetSpeed = this.approachSpeed;
-          this.setPhase('outcome', 'AV returns to neutral and continues.');
+          this.setPhase('outcome', 'The car drives on.');
         }
         break;
       case 'outcome':
@@ -337,13 +378,15 @@ export class ScenarioRunner {
     const d = ZEBRA - this.humanCar.frontZ;
     switch (this.phase) {
       case 'approach':
-        if (d < 42) this.setPhase('decision', 'The car is slowing down…');
+        // No narration: pointing at the deceleration would annotate the very
+        // implicit cue this baseline exists to measure.
+        if (d < 42) this.setPhase('decision');
         break;
       case 'decision': {
         const gap = this._brakeToStopLine(this.humanCar, ZEBRA - STOP_BEFORE);
         if (this.humanCar.speed < 0.3 && gap < 1.0) {
           this.humanCar.targetSpeed = 0;
-          this.setPhase('action', 'The car has stopped, with no signal. Decide yourself.');
+          this.setPhase('action');
         }
         break;
       }
@@ -379,7 +422,7 @@ export class ScenarioRunner {
         if (d < 30) {
           this.av.setBandState('assessing');
           this.av.setDisplay('detecting');
-          this.setPhase('detection', 'AV detected the waiting car (yellow band).');
+          this.setPhase('detection');
         }
         break;
       case 'detection': {
@@ -394,14 +437,15 @@ export class ScenarioRunner {
           this.av.setDisplay('yielding_car');
           this.sound.playGoAhead();
           this.logger.signalOnset();
-          this.setPhase('action', 'The AV is letting the other car in. Is that signal for you too?');
+          // Silent: spelling out who the "After you" addresses is the study question.
+          this.setPhase('action');
         }
         break;
       }
       case 'action':
         if (this.av.speed < 0.2 && this._timer > 1.0) {
           this.mergingCar.merge();
-          this.setPhase('acknowledgment', 'Car is merging in front of the AV.');
+          this.setPhase('acknowledgment');
         }
         break;
       case 'acknowledgment':
@@ -412,7 +456,7 @@ export class ScenarioRunner {
           // so the AV simply returns to neutral and drives on without reacting.
           this.av.setDisplay('off');
           this.av.setBandState('neutral');
-          this.setPhase('outcome', 'The other car has merged in. The AV continues.');
+          this.setPhase('outcome', 'The cars drive on.');
         }
         break;
       case 'outcome':
@@ -441,7 +485,7 @@ export class ScenarioRunner {
         if (d < 42) {
           this.av.setBandState('assessing');
           this.av.setDisplay('detecting');
-          this.setPhase('detection', 'AV detected you (yellow band + eye icon).');
+          this.setPhase('detection');
         }
         break;
       case 'detection': {
@@ -456,16 +500,15 @@ export class ScenarioRunner {
           this.av.setDisplay('yielding');
           this.sound.playGoAhead();
           this.logger.signalOnset();
-          this.setPhase('action', 'AV yields (cyan + 👋 + tone). Cross when ready.');
+          this.setPhase('action');
           // Scenario 3 edge case: a cyclist appears behind the now-stopped AV
           // and overtakes it. The AV does NOT address it, and the cyclist does
-          // not brake for the crossing pedestrian.
+          // not brake for the crossing pedestrian. Deliberately NO warning
+          // message: noticing (or missing) the cyclist unaided is exactly the
+          // overtrust behaviour this scenario measures.
           if (this.scenario === 3) {
             this.cyclist.startOvertake(this.av);
             this.logger.event('cyclist_overtaking_unaddressed');
-            if (!this.quietEdge) {
-              this.onMessage?.('⚠ A cyclist is overtaking the AV from behind, and it will not stop for you.');
-            }
           }
         }
         break;
@@ -480,11 +523,11 @@ export class ScenarioRunner {
           this.av.setDisplay('thanks');
           this.sound.playThanks();
           this.logger.event('av_thanks');
-          this.setPhase('acknowledgment', 'AV thanks you ☺️');
+          this.setPhase('acknowledgment');
         } else if (this._timer > timeoutS && !this.logger.current?.crossed) {
           this.sound.stopYieldLoop();
           this.logger.event('timeout_no_crossing');
-          this.setPhase('acknowledgment', 'You stayed, and the AV continues.');
+          this.setPhase('acknowledgment', 'You stayed, and the car continues.');
         }
         break;
       }
@@ -493,7 +536,7 @@ export class ScenarioRunner {
           this.av.setDisplay('off');
           this.av.setBandState('neutral');
           this.av.targetSpeed = this.approachSpeed;
-          this.setPhase('outcome', 'AV returns to neutral and continues.');
+          this.setPhase('outcome', 'The car drives on.');
         }
         break;
       case 'outcome':
@@ -509,46 +552,79 @@ export class ScenarioRunner {
   // actually is, plus a little station-specific staging (a person opposite, an
   // impatient overtaker, people on both sides).
   _updateWalk(dt) {
-    const p = this.pedestrian.group.position;
-
     if (this._walkPhase === 'walking') {
       this.av.group.visible = false; // no car between encounters
       const st = this._walkStations[this._walkIndex];
       if (!st) {
         if (!this._walkDone) {
           this._walkDone = true;
+          this.walkAwaitZ = null;
           this.logger.event('walk_complete');
-          this.onMessage?.('You have reached the end of the walk. Thanks for coming along.');
+          if (this.scenario === 'walk') this.onMessage?.('You have reached the end of the walk. Thanks for coming along.');
           this._finish();
         }
         return;
       }
       this.onPhase?.('walking');
-      if (p.z > st.z - 22) { this._startStation(st); return; }
+      if (this._autoStations) {
+        // Standalone variant (scenario 10): the encounter arises on its own as
+        // the player walks, no field to step into.
+        this.walkAwaitZ = null;
+        if (this.pedestrian.group.position.z > st.z - 22) this._startStation(st);
+        return;
+      }
+      // Between encounters the walk waits at a glowing field on the pavement
+      // (rendered by main.js on BOTH kerbs, a few metres before the crossing
+      // point, so the player can arrive on either side). main.js calls
+      // walkEnterZone() when the player steps into one.
+      this.walkAwaitZ = st.z - 4;
       return;
     }
 
     this._updateStation(dt, this._walkStations[this._walkIndex]);
   }
 
+  // Player stepped into the glowing field: begin this station's encounter.
+  walkEnterZone() {
+    if (this.scenario !== 'walk' || !this.running || this._walkPhase !== 'walking') return;
+    const st = this._walkStations[this._walkIndex];
+    if (!st) return;
+    this.walkAwaitZ = null;
+    this._startStation(st);
+  }
+
   _startStation(st) {
     this._walkPhase = 'encounter';
-    this._stationPhase = 'approach';
+    this._stationPhase = 'stage';
     this._timer = 0;
     this._stationActorsDone = false;
     this._npcCrossDelay = undefined;
-    // The car comes up from behind (the side a crossing pedestrian checks first),
-    // a little south of the crossing, and approaches at the set speed.
-    this.av.group.visible = true;
-    this.av.group.position.set(-1.9, 0, st.z - 32);
-    this.av.group.rotation.y = 0;
-    this.av.speed = this.approachSpeed * 0.6;
-    this.av.targetSpeed = this.approachSpeed;
-    this.av.setBandState('neutral', true);
-    this.av.setDisplay('off');
+    // Which pavement the player is on when the encounter begins. After crossing
+    // at a station they may carry on up the other side; every station works from
+    // either side (crossing then means going the other way), so nobody has to
+    // cross back just to continue the walk.
+    this._stationSide = this.pedestrian.group.position.x >= 0 ? 1 : -1;
+    // The scene is set FIRST: any waiting pedestrians are already there when
+    // the player arrives (no popping in mid-encounter), and the car only sets
+    // off after a short beat, so there is time to take the scene in.
+    this._stageStationActors(st);
+    this.av.group.visible = false;
+    this._stageT = 2.5; // seconds before the car appears down the road
     this.logger.event('walk_station_start', { kind: st.kind, z: st.z });
-    this.onPhase?.(st.kind);
+    this.onPhase?.('encounter'); // never the domain name — the phase label is on screen
     this.onMessage?.(st.intro);
+  }
+
+  // Pedestrian staging at the moment the player enters the field, relative to
+  // the pavement the player is on (side changes stay supported).
+  _stageStationActors(st) {
+    const side = this._stationSide || -1;
+    if (st.kind === 'targeted') {
+      this.npcs?.[0]?.place(-side * 5.5, st.z, side * Math.PI / 2); // person on the far kerb (the real addressee)
+    } else if (st.kind === 'scalability') {
+      this.npcs?.[0]?.place(side * 5.5, st.z - 2, -side * Math.PI / 2);  // near side, just behind the player
+      this.npcs?.[1]?.place(-side * 5.5, st.z + 1.5, side * Math.PI / 2); // far side
+    }
   }
 
   // Where the car should aim to stop. If the player is waiting (standing still)
@@ -561,12 +637,31 @@ export class ScenarioRunner {
     const besideRoad = Math.abs(p.x) > LAYOUT.roadWidth / 2 - 1.0;
     const waitingHere = besideRoad && !this.pedestrian.moving && Math.abs(p.z - st.z) < 14;
     const base = waitingHere ? p.z - 1.5 : st.z - STOP_BEFORE; // ~1 m clearance after braking settles
-    return Math.min(base, st.z + 6);
+    // minStop keeps the car's body clear of the junction just south of this station
+    return Math.max(st.minStop ?? -Infinity, Math.min(base, st.z + 6));
   }
 
   _updateStation(dt, st) {
     const p = this.pedestrian.group.position;
     switch (this._stationPhase) {
+      case 'stage': {
+        // Waiting pedestrians are already in place; after a short beat the car
+        // appears further down the road (later arrival than before, so the
+        // player has time to read the scene before it matters).
+        this._stageT -= dt;
+        if (this._stageT <= 0) {
+          this.av.group.visible = true;
+          this.av.group.position.set(-1.9, 0, st.z - 40);
+          this.av.group.rotation.y = 0;
+          this.av.speed = this.approachSpeed * 0.6;
+          this.av.targetSpeed = this.approachSpeed;
+          this.av.setBandState('neutral', true);
+          this.av.setDisplay('off');
+          this._stationPhase = 'approach';
+          this._timer = 0;
+        }
+        break;
+      }
       case 'approach': {
         this.av.targetSpeed = this.approachSpeed;
         if (st.z - this.av.frontZ < 26) {
@@ -598,7 +693,9 @@ export class ScenarioRunner {
         // Hold at the frozen stop target (no creeping toward the pedestrian).
         this._brakeToStopLine(this.av, this._stationStopZ);
         this._updateStationActors(dt, st);
-        const crossed = p.x > LAYOUT.roadWidth / 2 + 0.5;
+        // Crossed = reached the pavement OPPOSITE the one this station started
+        // on (works in both directions, so the walk continues on either side).
+        const crossed = -this._stationSide * p.x > LAYOUT.roadWidth / 2 + 0.5;
         const walkedPast = p.z > st.z + 6;
         if (crossed) { this.logger.event('walk_crossed', { kind: st.kind }); this._endStation(st); }
         else if (this._timer > st.maxWait || walkedPast) { this.logger.event('walk_not_crossed', { kind: st.kind }); this._endStation(st); }
@@ -613,7 +710,7 @@ export class ScenarioRunner {
           this._walkIndex += 1;
           this._stationPhase = null;
           if (this._walkStations[this._walkIndex]) {
-            this.onMessage?.('The car drives on. Keep walking up the street, the next moment is ahead.');
+            this.onMessage?.('Walk on to the next glowing field, on whichever side of the street you like.');
           }
         }
         break;
@@ -627,37 +724,45 @@ export class ScenarioRunner {
     if (st.outro) this.onMessage?.(st.outro);
     this._stationPhase = 'resume';
     this._timer = 0;
+    // Domain-targeted mini survey right after the situation resolves (main.js
+    // shows it and appends the answers to the run's event log).
+    this.onStationSurvey?.(st.kind);
   }
 
-  // Bring in the station's extra road users at the moment the car yields.
+  // Reactions at the moment the car yields. The waiting pedestrians were
+  // already staged when the encounter began; here they only start REACTING to
+  // the signal (the addressee steps off shortly after the cue), and the
+  // negotiation station brings in the car behind.
   _triggerStationActors(st) {
     if (st.kind === 'targeted') {
-      this.npcs?.[0]?.place(5.5, st.z, -Math.PI / 2); // person on the far kerb (the real addressee)
       this._npcCrossDelay = 1.8;
     } else if (st.kind === 'scalability') {
-      this.npcs?.[0]?.place(-5.5, st.z - 2, Math.PI / 2);  // near side, just behind the player
-      this.npcs?.[1]?.place(5.5, st.z + 1.5, -Math.PI / 2); // far side
       this._npcCrossDelay = 1.6;
     } else if (st.kind === 'negotiation') {
       // An impatient car a little behind the yielding AV: it honks, then
       // overtakes across the crossing. (Reactions are relative to the AV, so it
-      // works anywhere along the street.)
+      // works anywhere along the street.) safeOvertake: inside the walk the
+      // overtaker still brakes for people in the road — the threat stays, but a
+      // collision cannot abort the whole walk. The standalone scenario 6 keeps
+      // the real hazard.
       const imp = this.traffic?.spawnScripted({
         kind: 'car', route: 'northAV', offset: 20, cruise: this.approachSpeed + 5,
-        color: 0x1c1c20, honkWhenBlocked: true, overtakeAV: true, ignoreZebra: true, patience: 1.8,
+        color: 0x1c1c20, honkWhenBlocked: true, overtakeAV: true, ignoreZebra: true,
+        patience: 1.8, safeOvertake: true,
       });
       if (imp) { imp.mesh.position.set(-1.9, 0, this.av.group.position.z - 16); imp.speed = this.approachSpeed; }
-      this.onMessage?.('The car yields for you, but the one behind is not waiting.');
+      // No HUD line: the horn and the swerve are the cues, not a caption.
     }
   }
 
   _updateStationActors(dt, st) {
+    const side = this._stationSide || -1;
     if (this._npcCrossDelay !== undefined) {
       this._npcCrossDelay -= dt;
       if (this._npcCrossDelay <= 0) {
         this._npcCrossDelay = undefined;
-        if (st.kind === 'targeted') this.npcs?.[0]?.startCross(-5.6);       // far -> near, across the crossing
-        else if (st.kind === 'scalability') this.npcs?.[0]?.startCross(5.6); // near person crosses; far one stays
+        if (st.kind === 'targeted') this.npcs?.[0]?.startCross(side * 5.6);        // far -> near (toward the player's side)
+        else if (st.kind === 'scalability') this.npcs?.[0]?.startCross(-side * 5.6); // near person crosses; far one stays
       }
     }
   }
@@ -668,7 +773,7 @@ export class ScenarioRunner {
   }
 
   _finish() {
-    this.setPhase('cooldown', 'Scenario complete. Watch how the traffic reacts…');
+    this.setPhase('cooldown', 'This situation is complete.');
   }
 
   // Hard stop after an accident: freeze the scripted vehicles, end the run.

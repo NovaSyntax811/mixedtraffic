@@ -636,10 +636,12 @@ export class MergingCar {
   // (z=1.9) into the intersection, a quarter-turn left, then north in the AV's
   // lane (x=-1.9). (The old single diagonal arc cut across the NW sidewalk.)
   update(dt, obstacles = []) {
+    this.moving = false; // true only in frames where the car actually advances
     if (this.state !== 'merging') return;
     const ry = this.group.rotation.y;
     const fwd = new THREE.Vector3(Math.sin(ry), 0, Math.cos(ry));
     if (blockingObstacle(this.group.position, fwd, obstacles, 5, 1.0)) return;
+    this.moving = true;
 
     const pos = this.group.position;
     const speed = 6;
@@ -745,7 +747,8 @@ export class TrafficManager {
   //  honkWhenBlocked    — honks repeatedly while stuck (onHonk callback)
   spawnScripted({ kind = 'car', route = 'south', offset = 70, cruise = 7, color,
                   siren = false, ignoreZebra = false, ignoreReservation = false,
-                  overtakeAV = false, honkWhenBlocked = false, patience = 2.5 }) {
+                  overtakeAV = false, honkWhenBlocked = false, patience = 2.5,
+                  safeOvertake = false }) {
     const spec = KIND_SPECS[kind] ?? KIND_SPECS.car;
     const r = ROUTE_PRESETS[route](offset);
     const mesh = spec.build(color ?? CAR_COLORS[Math.floor(this._rand() * CAR_COLORS.length)]);
@@ -754,7 +757,7 @@ export class TrafficManager {
     this.scene.add(mesh);
     const car = { mesh, route: r, cruise, speed: cruise * 0.6, kind, scripted: true,
       siren, ignoreZebra, ignoreReservation, overtakeAV, honkWhenBlocked, patience,
-      hw: spec.hw, hl: spec.hl, r: spec.r };
+      safeOvertake, hw: spec.hw, hl: spec.hl, r: spec.r };
     this.cars.push(car);
     return car;
   }
@@ -827,7 +830,14 @@ export class TrafficManager {
       // The ambulance ignores other cars (they pull over for it) but still
       // brakes for the pedestrian / AV.
       let obsList = obstacles;
-      if (car._overtaking) obsList = obstacles.filter((o) => o.name !== 'AV' && o.name !== 'pedestrian');
+      if (car._overtaking) {
+        // Overtakers must ignore the AV (they are passing it). The reckless one
+        // also ignores pedestrians (real collisions possible, scenario 6); a
+        // safeOvertake car keeps braking for people in the road (walk stations).
+        obsList = car.safeOvertake
+          ? obstacles.filter((o) => o.name !== 'AV')
+          : obstacles.filter((o) => o.name !== 'AV' && o.name !== 'pedestrian');
+      }
       const others = car.siren ? [] : this.cars.filter((c) => c !== car)
         .map((c) => ({ pos: c.mesh.position, r: c.r ?? 1.6, name: 'car' }));
       const blocked = blockingObstacle(pos, fwd, [...obsList, ...others], 5 + car.speed, 1.0);
@@ -887,7 +897,9 @@ export class TrafficManager {
           const relZ = pos.z - avPos.z;
           const targetX = relZ > -10 && relZ < 14 ? 0.2 : -1.9;
           pos.x += (targetX - pos.x) * Math.min(1, dt * 2);
-          if (relZ > -12) target = car.cruise; // push through
+          // Push through — unless this is a safeOvertake car currently blocked
+          // by someone in the road, in which case the brake wins.
+          if (relZ > -12 && !(car.safeOvertake && blocked)) target = car.cruise;
         }
       }
 
