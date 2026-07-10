@@ -109,8 +109,9 @@ function buildEnvironment(scene) {
   const lineMat = new THREE.MeshStandardMaterial({ color: 0x9c988b, roughness: 0.8 });
 
   // Ground base (extended so the continuous-walk corridor up the main street
-  // has ground/road under it the whole way).
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), grass);
+  // has ground/road under it the whole way — reaches past the walk's last
+  // station at z=220, see WALK_* constants in scenarios.js).
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(300, 550), grass);
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = -0.02;
   ground.receiveShadow = true;
@@ -119,7 +120,7 @@ function buildEnvironment(scene) {
   // Flush sidewalks (thin slabs, not raised curbs — the walking area is not a
   // separated step). Drawn first so the roads sit on top at the intersection.
   for (const sx of [-1, 1]) {
-    const sw = new THREE.Mesh(new THREE.PlaneGeometry(sidewalk, 300), pavement);
+    const sw = new THREE.Mesh(new THREE.PlaneGeometry(sidewalk, 550), pavement);
     sw.rotation.x = -Math.PI / 2;
     sw.position.set(sx * (roadWidth / 2 + sidewalk / 2), 0.002, 0);
     sw.receiveShadow = true;
@@ -135,7 +136,7 @@ function buildEnvironment(scene) {
 
   // Roads (two crossing strips), main slightly below side so the side road
   // reads as crossing over at the junction.
-  const mainRoad = new THREE.Mesh(new THREE.PlaneGeometry(roadWidth, 300), asphaltMain);
+  const mainRoad = new THREE.Mesh(new THREE.PlaneGeometry(roadWidth, 550), asphaltMain);
   mainRoad.rotation.x = -Math.PI / 2;
   mainRoad.position.y = 0.004;
   mainRoad.receiveShadow = true;
@@ -154,16 +155,18 @@ function buildEnvironment(scene) {
     m.position.set(x, 0.012, z);
     scene.add(m);
   };
-  for (const sx of [-1, 1]) addLine(0.16, 300, sx * (roadWidth / 2 - 0.2), 0);  // main road edges
+  for (const sx of [-1, 1]) addLine(0.16, 550, sx * (roadWidth / 2 - 0.2), 0);  // main road edges
   for (const sz of [-1, 1]) addLine(220, 0.16, 0, sz * (roadWidth / 2 - 0.2));  // side road edges
 
   // No painted crossing here on purpose: the pedestrian has no legal right of
   // way, so when the AV stops it is yielding by choice (prosocial), not because
   // a zebra obliges it. (zebraZ is kept only as the internal crossing point.)
 
-  // Center lane dashes on the main road
+  // Center lane dashes on the main road. Upper bound covers the continuous
+  // walk's last station (z=220, see WALK_* constants in scenarios.js) with
+  // margin so the road markings never run out ahead of the player.
   const dashMat = new THREE.MeshStandardMaterial({ color: 0x9a9580, roughness: 0.85 });
-  for (let z = -140; z <= 140; z += 6) {
+  for (let z = -140; z <= 250; z += 6) {
     if (Math.abs(z) < roadWidth / 2 + 2) continue; // skip intersection
     const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 2.4), dashMat);
     dash.rotation.x = -Math.PI / 2;
@@ -171,13 +174,17 @@ function buildEnvironment(scene) {
     scene.add(dash);
   }
 
-  // Low-poly buildings around the intersection corners
+  // Low-poly buildings around the intersection corners. The north side (cz=1)
+  // gets more rows than the south so it reaches past the continuous walk's
+  // last station (z=220) — the south side is never visited, so it keeps the
+  // original, cheaper row count.
   const palette = [0x55617d, 0x6a5d74, 0x726a5e, 0x4f6a76, 0x5e4f66];
   let seed = 7;
   const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   for (const cx of [-1, 1]) {
     for (const cz of [-1, 1]) {
-      for (let i = 0; i < 10; i++) { // rows extended up the corridor for the walk
+      const rows = cz === 1 ? 21 : 10; // rows extended up the corridor for the walk
+      for (let i = 0; i < rows; i++) {
         const w = 6 + rand() * 6, d = 6 + rand() * 6, h = 6 + rand() * 16;
         const b = new THREE.Mesh(
           new THREE.BoxGeometry(w, h, d),
@@ -194,8 +201,9 @@ function buildEnvironment(scene) {
 
   // Street lamps: a pair by the origin crossing, plus a staggered line of them
   // up the main street so the walk corridor reads as a real, lit street.
+  // Upper bound covers the last walk station (z=220) with margin.
   const lampSpots = [[-roadWidth / 2 - 1, zebraZ + 2], [roadWidth / 2 + 1, zebraZ - 2]];
-  for (let z = 24; z <= 116; z += 23) {
+  for (let z = 24; z <= 224; z += 23) {
     lampSpots.push([-roadWidth / 2 - 1, z]);
     lampSpots.push([roadWidth / 2 + 1, z + 11]);
   }

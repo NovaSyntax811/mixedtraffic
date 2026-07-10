@@ -116,6 +116,7 @@ Numbered scenarios all play out at the same single crossing.
 | 5 | A busy intersection | The same crossing amid a bus, a truck, a cyclist and an ambulance that everyone pulls over for. Judging a crossing in a noisy scene. |
 | 6 | Impatient drivers | The AV yields correctly, but an impatient driver behind it honks and overtakes right across your path. The car is safe, the others are not. |
 | 9 | Is the signal for you too? | Several people wait, on both kerbs. The AV's yield is really only for the person on the far kerb — it moves off once they're clear. The near kerb's person assumes the same signal covers them, steps out late off the marked crossing, and the AV has to brake hard to avoid them: a concrete near-miss from misreading a broadcast signal as personally addressed. |
+| 10 | Pedestrian baseline | The clean reference case for scenario 9. One person waits on each kerb; the AV yields once, addressed to both, and simply waits until both have actually crossed before it thanks them and drives on. No scoping tricks, no near-miss. |
 
 ## ★ A walk through town (continuous walk)
 

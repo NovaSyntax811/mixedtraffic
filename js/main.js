@@ -1,11 +1,11 @@
 // Entry point: wires scene, actors, audio, scenarios, cameras, input, UI, logging.
 import * as THREE from 'three';
-import { createScene, LAYOUT } from './scene.js?v=47';
+import { createScene, LAYOUT } from './scene.js?v=48';
 import { AV } from './vehicle.js?v=36';
-import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=45';
+import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=46';
 import { EHMISound } from './audio.js?v=17';
 import { BehaviorLogger, showConfidenceCheck } from './logger.js?v=15';
-import { ScenarioRunner } from './scenarios.js?v=52';
+import { ScenarioRunner } from './scenarios.js?v=56';
 
 const { scene, camera, renderer, composer, setTimeOfDay } = createScene();
 
@@ -20,6 +20,7 @@ const SCENARIO_LIGHTING = {
   5: 'dusk',       // Mixed traffic — emergency lights pop
   6: 'afternoon',  // Aggressive drivers
   9: 'afternoon',  // Ambiguous signal
+  pedestrian_baseline: 'afternoon', // Pedestrian baseline — both sides cross
 };
 
 // Quick "who's who" briefing shown at the start of each scenario, so the
@@ -32,6 +33,7 @@ const SCENARIO_RECAP = {
   5: { title: 'A busy intersection', lines: [['🚌 Bus, 🚚 truck, 🚴 cyclist', 'ordinary traffic, each behaving differently'], ['🚑 Ambulance', 'siren on, so everyone pulls over for it'], ['🚶 You', 'cross amid the chaos when you judge it safe']] },
   6: { title: 'Impatient drivers', lines: [['🚐 The cautious car', 'yields for you, correctly'], ['🚗 Impatient driver', 'tailgates, honks, and overtakes right across your path'], ['🚶 You', 'the car is safe, the others are not']] },
   9: { title: 'Is the signal for you?', lines: [['🚐 The car', 'yields and shows 👋'], ['🚶 🚶 Other people', 'also waiting, and one of them may be who the signal is for'], ['🚶 You', 'decide whether the signal is meant for you']] },
+  pedestrian_baseline: { title: 'Pedestrian baseline', lines: [['🚐 The car', 'yields and shows 👋, addressed to everyone waiting'], ['🚶 Person opposite', 'waits on the far curb and crosses once the car yields'], ['🚶 You', 'cross too — no tricks here, this is the clean reference case']] },
   walk: { title: 'A walk through town', lines: [['🚶 You', 'walk up the street with W and turn with the mouse. You stroll, you do not stay in one place'], ['🚐 An automated car', 'turns up at a few points along the way and reacts to where you are'], ['🤝 Crossing is your call', 'there are no marked crossings, so each time decide whether to cross or just carry on'], ['➡ Keep going', 'after each moment, walk on up the street and the next one comes to you']] },
 };
 // Show the centered "who's who" briefing for a scenario; the run starts when
@@ -222,6 +224,7 @@ const SCENARIO_LABELS = {
   1: '1 · A car with no signals', 2: '2 · A car that lets you cross', 3: '3 · The car missed a cyclist',
   4: '4 · A signal for the other car', 5: '5 · A busy intersection', 6: '6 · Impatient drivers',
   9: '9 · Is the signal for you?',
+  pedestrian_baseline: '10 · Pedestrian baseline',
   walk: '★ A walk through town',
 };
 let selectedScenario = 1;

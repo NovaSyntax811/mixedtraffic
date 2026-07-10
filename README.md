@@ -125,6 +125,16 @@ signal" vs. "the vehicle stopped") against scenario 2 shows whether people
 read a broadcast signal as personally addressed, and whether they register
 the near-miss as a consequence of that assumption.
 
+**Scenario 10 — Pedestrian Baseline:** the clean reference condition for
+scenario 9's "several people, one signal" theme, with none of its scoping
+tricks or near-miss danger. One NPC waits on the far curb, mirroring the
+participant on their own curb. The AV yields once, addressed to both, and
+simply waits until both have actually crossed — NPC and participant — before
+it thanks them and drives on. Logged: `npc_crossing_started`,
+`npc_crossing_finished`, plus the standard behavioral measures, to compare
+against scenario 9 and isolate the effect of the scoping/danger manipulation
+from the base "multiple people crossing" case.
+
 **★ Trust Protocol (Story 3):** five back-to-back runs; runs 1–4 are clean
 scenario-2 yields, run 5 silently swaps in the unaddressed-cyclist edge case —
 no warning messages reveal it. Each run logs `protocolStep` plus a gaze proxy

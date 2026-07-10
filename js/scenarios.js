@@ -1,6 +1,6 @@
 // Scenario state machines, following the interaction arc:
 // Detection -> Decision -> Action (signal) -> Acknowledgment -> Outcome
-import { LAYOUT } from './scene.js?v=47';
+import { LAYOUT } from './scene.js?v=48';
 
 const ZEBRA = LAYOUT.zebraZ;
 const PREROLL = 5;       // short opening hold: the car waits a few seconds so the
@@ -10,6 +10,23 @@ const STOP_BEFORE = 3.2; // the vehicle nose stops this far before the crossing 
 // north of the junction (junction north edge = roadWidth/2). Stops are clamped
 // to this so a yielding vehicle never blocks the cross streets.
 const JUNCTION_CLEAR = LAYOUT.roadWidth / 2 + 5;
+
+// Continuous-walk pacing. Distances here govern how much ground the player
+// covers *before* an encounter starts building — i.e. how much real time
+// they get to notice the car and watch it approach/brake before reaching the
+// crossing themselves. That time budget should stay the same regardless of
+// how fast the player walks, so these are scaled by the same factor as the
+// pedestrian walk-speed increase (1.5 -> 3.0 m/s, see Pedestrian.speed in
+// actors.js) rather than left as the old, now too-tight, absolute values.
+const WALK_SPEED_SCALE = 2;
+const WALK_TRIGGER_LEAD = 22 * WALK_SPEED_SCALE;  // player-to-station distance that starts an encounter
+const WALK_STATION_GAP = 28 * WALK_SPEED_SCALE;   // distance between consecutive stations
+const WALK_FIRST_HEADROOM = 4 * WALK_SPEED_SCALE; // free, car-free walking before the very first encounter
+// The AV should still visibly "come up from behind" the player when an
+// encounter starts. This gap is about the vehicle's own approach, not the
+// player's pace, so it stays fixed rather than scaling with WALK_SPEED_SCALE.
+const WALK_AV_BEHIND_GAP = 10;
+const WALK_AV_SPAWN_LEAD = WALK_TRIGGER_LEAD + WALK_AV_BEHIND_GAP;
 
 export class ScenarioRunner {
   constructor({ av, humanCar, pedestrian, cyclist, mergingCar, traffic, npcs, sound, logger, onPhase, onMessage, onComplete }) {
@@ -60,24 +77,34 @@ export class ScenarioRunner {
     if (scenario === 'walk') {
       // Continuous walk: a single journey north past several encounters, each
       // probing one of the research themes (uncertainty, who the signal is for,
-      // negotiation, and scaling to several road users). Traffic is kept light:
-      // only the scripted actors of the current station appear.
+      // negotiation, and scaling to several road users). The point of a *walk*
+      // is to give the player an actual street to read, not four isolated
+      // set-pieces in an empty corridor — so ambient oncoming traffic runs
+      // continuously between stations (see _updateWalkAmbientTraffic). The
+      // built-in auto-spawner is disabled because its routes are anchored to
+      // the original intersection and would never reach the far stations.
       this._preroll = 0;
       this.traffic?.setEnabled(false);
       this.traffic?.clearScripted();
+      this._walkAmbientTimer = 3; // first ambient car arrives a few seconds in
       this.av.group.visible = false;
       this.pedestrian.group.position.set(-(LAYOUT.roadWidth / 2 + LAYOUT.sidewalk / 2), 0, 0);
+      // Station z's build on WALK_TRIGGER_LEAD/WALK_STATION_GAP so the spacing
+      // stays derived from the pacing constants above, not re-guessed here.
+      // maxWait budgets = the same decision time as before + how long it now
+      // actually takes to walk the (unchanged) 8m road at the new speed.
+      const s1 = WALK_TRIGGER_LEAD + WALK_FIRST_HEADROOM;
       this._walkStations = [
-        { kind: 'uncertainty', z: 26, maxWait: 9,
+        { kind: 'uncertainty', z: s1, maxWait: 6,
           intro: 'A car is coming up the street. You are just walking here.',
           outro: 'It stopped for you anyway. Did you actually want to cross, or did it misread you?' },
-        { kind: 'targeted', z: 54, maxWait: 13,
+        { kind: 'targeted', z: s1 + WALK_STATION_GAP, maxWait: 10,
           intro: 'Someone is waiting on the far pavement as a car approaches.',
           outro: 'The car gave way. Was that signal for you, or for the person opposite?' },
-        { kind: 'negotiation', z: 82, maxWait: 13,
+        { kind: 'negotiation', z: s1 + WALK_STATION_GAP * 2, maxWait: 10,
           intro: 'A car approaches, with an impatient one close behind it.',
           outro: 'The first car gave way, but the driver behind would not wait.' },
-        { kind: 'scalability', z: 110, maxWait: 14,
+        { kind: 'scalability', z: s1 + WALK_STATION_GAP * 3, maxWait: 11,
           intro: 'People are waiting on both sides of the street as a car comes.',
           outro: 'One car, several people. Who was its signal really meant for?' },
       ];
@@ -159,6 +186,14 @@ export class ScenarioRunner {
       this.npcs?.[0]?.place(5.5, ZEBRA, -Math.PI / 2);     // far (east) curb
       this.npcs?.[1]?.place(-5.5, ZEBRA + 3, Math.PI / 2); // same curb as the player, a bit north
       this.setPhase('approach', 'Several people are waiting to cross here, on both curbs. Decide for yourself (W/↑).');
+    } else if (scenario === 'pedestrian_baseline') {
+      // Clean reference condition for the "several people, one signal" theme
+      // — the counterpart to scenario 9's ambiguous/dangerous version, with
+      // none of the scoping tricks. One person waits on each curb, the AV
+      // yields once, and both are free to cross; the AV waits for both to
+      // actually clear before it thanks them and moves on.
+      this.npcs?.[0]?.place(5.5, ZEBRA, -Math.PI / 2); // far (east) curb, mirrors the player
+      this.setPhase('approach', 'Someone is also waiting on the far curb. See whether the AV lets you both cross (W/↑).');
     } else {
       this.setPhase('approach', 'An AV is approaching, with no marked crossing here. See whether it yields for you (W/↑).');
     }
@@ -172,10 +207,11 @@ export class ScenarioRunner {
   // lets the person wait anywhere along the kerb and have the car respond to
   // them, not to a predetermined crossing point.
   _updatePedestrianDetection(dt) {
-    // Scenario 9 deliberately uses a fixed stop line (see _updateAmbiguous):
-    // a dynamic stop could park the AV closer to one of its scripted NPCs
-    // than the scenario's fixed timers assume.
-    if (this.scenario === 1 || this.scenario === 4 || this.scenario === 9 || this.scenario === 'walk') return;
+    // Scenarios with a scripted NPC crossing line deliberately use a fixed
+    // stop line instead (see _updateAmbiguous / _updatePedestrianBaseline):
+    // a dynamic stop could park the AV closer to the NPC than intended.
+    if (this.scenario === 1 || this.scenario === 4 || this.scenario === 9
+      || this.scenario === 'pedestrian_baseline' || this.scenario === 'walk') return;
     // Once the AV has committed to its stop (action phase onward), freeze the
     // target so it does not chase the pedestrian as they step into the road.
     if (this.phase !== 'approach' && this.phase !== 'detection') return;
@@ -270,6 +306,7 @@ export class ScenarioRunner {
     else if (this.scenario === 4) this._updateMerge(dt);
     else if (this.scenario === 1) this._updateBaseline(dt);
     else if (this.scenario === 9) this._updateAmbiguous(dt);
+    else if (this.scenario === 'pedestrian_baseline') this._updatePedestrianBaseline(dt);
     else this._updateCrossing(dt);
   }
 
@@ -379,6 +416,72 @@ export class ScenarioRunner {
         if (this.av.group.position.z > 55) this._finish();
         break;
       }
+    }
+  }
+
+  // ---------- Pedestrian baseline: two people, one clean yield ----------
+  // The reference condition for the "several people, one signal" theme —
+  // counterpart to scenario 9, with none of its scoping ambiguity or
+  // near-miss danger. One person waits on each curb; the AV yields once,
+  // addressed to both, and simply waits until both have actually cleared
+  // the road before it thanks them and drives on. Fixed stop line (not the
+  // pedestrian-tracking dynamic stop) keeps the AV a safe, known distance
+  // from the NPC's crossing line, same reasoning as scenario 9.
+  _updatePedestrianBaseline(dt) {
+    const d = this.distToZebra;
+    switch (this.phase) {
+      case 'approach':
+        if (d < 42) {
+          this.av.setBandState('assessing');
+          this.av.setDisplay('detecting');
+          this.setPhase('detection', 'AV detected pedestrians (yellow band + eye icon).');
+        }
+        break;
+      case 'detection': {
+        const stopZ = Math.max(JUNCTION_CLEAR, ZEBRA - STOP_BEFORE);
+        const gap = this._brakeToStopLine(this.av, stopZ);
+        if (this.av.speed < 0.3 && gap < 1.0) {
+          this.av.targetSpeed = 0;
+          this.av.setBandState('yielding');
+          this.av.setDisplay('yielding');
+          this.sound.playGoAhead();
+          this.logger.signalOnset();
+          this._npcStarted = false;
+          this._npcDelay = 1.4; // a natural beat before the NPC steps out too
+          this.setPhase('action', 'AV yields for both of you (cyan + 👋 + tone). Cross when ready.');
+        }
+        break;
+      }
+      case 'action': {
+        if (!this._npcStarted) {
+          this._npcDelay -= dt;
+          if (this._npcDelay <= 0) {
+            this._npcStarted = true;
+            this.npcs[0].startCross(-5.6); // far curb -> near curb, on the marked zebra
+            this.logger.event('npc_crossing_started');
+          }
+        }
+        const npcDone = this._npcStarted && this.npcs[0].state !== 'crossing';
+        const playerInRoad = Math.abs(this.pedestrian.group.position.x) < LAYOUT.roadWidth / 2 + 0.4;
+        if (!playerInRoad && ((npcDone && this._timer > 6) || this._timer > 35)) {
+          this.logger.event('npc_crossing_finished');
+          this.av.setDisplay('thanks');
+          this.sound.playThanks();
+          this.setPhase('acknowledgment', 'AV thanks you both ☺️');
+        }
+        break;
+      }
+      case 'acknowledgment':
+        if (this._timer > 2.0) {
+          this.av.setDisplay('off');
+          this.av.setBandState('neutral');
+          this.av.targetSpeed = this.approachSpeed;
+          this.setPhase('outcome', 'AV returns to neutral and continues.');
+        }
+        break;
+      case 'outcome':
+        if (this.av.group.position.z > 55) this._finish();
+        break;
     }
   }
 
@@ -565,11 +668,13 @@ export class ScenarioRunner {
     const p = this.pedestrian.group.position;
 
     if (this._walkPhase === 'walking') {
-      this.av.group.visible = false; // no car between encounters
+      this.av.group.visible = false; // no station AV between encounters
+      this._updateWalkAmbientTraffic(dt); // but the street is never empty
       const st = this._walkStations[this._walkIndex];
       if (!st) {
         if (!this._walkDone) {
           this._walkDone = true;
+          this.traffic?.clearScripted();
           this.logger.event('walk_complete');
           this.onMessage?.('You have reached the end of the walk. Thanks for coming along.');
           this._finish();
@@ -577,11 +682,46 @@ export class ScenarioRunner {
         return;
       }
       this.onPhase?.('walking');
-      if (p.z > st.z - 22) { this._startStation(st); return; }
+      if (p.z > st.z - WALK_TRIGGER_LEAD) { this._startStation(st); return; }
       return;
     }
 
     this._updateStation(dt, this._walkStations[this._walkIndex]);
+  }
+
+  // Ambient oncoming traffic for the free walk: without this, the corridor
+  // between the four scripted stations is completely empty, which defeats
+  // the point of a walk meant to let the player read a live street. Cars
+  // spawn in the opposite lane a little ahead of wherever the player
+  // currently is, and get swept away once they fall behind — the built-in
+  // TrafficManager auto-spawner can't do this itself, since its routes are
+  // anchored to the original intersection (z≈0), far short of the later
+  // stations (up to z=220).
+  _updateWalkAmbientTraffic(dt) {
+    if (!this.traffic) return;
+    const playerZ = this.pedestrian.group.position.z;
+
+    this._walkAmbientTimer -= dt;
+    if (this._walkAmbientTimer <= 0) {
+      this._walkAmbientTimer = 5 + this.traffic._rand() * 4;
+      const car = this.traffic.spawnScripted({
+        kind: 'car', route: 'south', offset: playerZ + 70 + this.traffic._rand() * 20,
+        cruise: 7 + this.traffic._rand() * 3,
+        ignoreZebra: true, // the fixed zebra-stop rule is tied to one z; irrelevant this far up the corridor
+      });
+      if (car) car.walkAmbient = true;
+    }
+
+    // Sweep cars that have fallen well behind the player, instead of relying
+    // on the route's built-in despawn line (z < -85), which is miles behind
+    // the player for most of this corridor and would leave them lingering.
+    for (let i = this.traffic.cars.length - 1; i >= 0; i--) {
+      const c = this.traffic.cars[i];
+      if (c.walkAmbient && c.mesh.position.z < playerZ - 40) {
+        this.traffic.scene.remove(c.mesh);
+        this.traffic.cars.splice(i, 1);
+      }
+    }
   }
 
   _startStation(st) {
@@ -593,7 +733,7 @@ export class ScenarioRunner {
     // The car comes up from behind (the side a crossing pedestrian checks first),
     // a little south of the crossing, and approaches at the set speed.
     this.av.group.visible = true;
-    this.av.group.position.set(-1.9, 0, st.z - 32);
+    this.av.group.position.set(-1.9, 0, st.z - WALK_AV_SPAWN_LEAD);
     this.av.group.rotation.y = 0;
     this.av.speed = this.approachSpeed * 0.6;
     this.av.targetSpeed = this.approachSpeed;
@@ -604,17 +744,15 @@ export class ScenarioRunner {
     this.onMessage?.(st.intro);
   }
 
-  // Where the car should aim to stop. If the player is waiting (standing still)
-  // beside the road near this station, the car stops ~1 m short of them, so it
-  // reacts to where the person actually is. While the player is still walking,
-  // it just aims for the nominal line before the crossing (no creeping after a
-  // moving target).
+  // Where the car should aim to stop: wherever the player currently is, not a
+  // fixed painted line — the whole point is that the AV reacts to the person,
+  // not to a predetermined "station" point they may not have reached yet.
+  // Clamped so it never rests absurdly early (player still far off when
+  // braking starts) or past the nominal crossing.
   _walkStopZ(st) {
-    const p = this.pedestrian.group.position;
-    const besideRoad = Math.abs(p.x) > LAYOUT.roadWidth / 2 - 1.0;
-    const waitingHere = besideRoad && !this.pedestrian.moving && Math.abs(p.z - st.z) < 14;
-    const base = waitingHere ? p.z - 1.5 : st.z - STOP_BEFORE; // ~1 m clearance after braking settles
-    return Math.min(base, st.z + 6);
+    const playerZ = this.pedestrian.group.position.z;
+    const target = playerZ - 1.5; // ~1m clearance once braking settles
+    return Math.min(Math.max(target, st.z - 20), st.z + 6);
   }
 
   _updateStation(dt, st) {
@@ -631,9 +769,11 @@ export class ScenarioRunner {
         break;
       }
       case 'detect': {
-        // Keep re-aiming while braking so the stop reflects where the player is
-        // by the time the car settles.
-        this._stationStopZ = this._walkStopZ(st);
+        // Keep re-aiming at the player's live position while braking. If they
+        // just keep walking through the whole time, stop re-aiming after a
+        // few seconds and commit to the nominal line instead — otherwise the
+        // AV would trail a continuously-moving target and never actually stop.
+        this._stationStopZ = this._timer < 6 ? this._walkStopZ(st) : st.z - STOP_BEFORE;
         const gap = this._brakeToStopLine(this.av, this._stationStopZ);
         if (this.av.speed < 0.3 && gap < 1.2) {
           this.av.targetSpeed = 0;

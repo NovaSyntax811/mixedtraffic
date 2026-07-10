@@ -1,6 +1,6 @@
 // User-controlled pedestrian + secondary actors (cyclist, merging car, ambient traffic).
 import * as THREE from 'three';
-import { LAYOUT } from './scene.js?v=39';
+import { LAYOUT } from './scene.js?v=48';
 
 // Shared obstacle check: is anything in `obstacles` blocking the path ahead?
 // Returns the blocking obstacle, or null. `forward` must be normalized (XZ plane).
@@ -96,9 +96,11 @@ export class Pedestrian {
       // Roam around the crossing/intersection, but stay near it so the car's
       // yield stays connected to you (no wandering far down the street).
       this.group.position.x = THREE.MathUtils.clamp(this.group.position.x, -11, 11);
-      // z range reaches far north so the continuous-walk corridor is walkable;
-      // the single-intersection scenarios keep the player near the crossing anyway.
-      this.group.position.z = THREE.MathUtils.clamp(this.group.position.z, -14, 124);
+      // z range reaches far north so the continuous-walk corridor is walkable
+      // (last station at z=220, +14m margin — see WALK_* constants in
+      // scenarios.js); the single-intersection scenarios keep the player near
+      // the crossing anyway.
+      this.group.position.z = THREE.MathUtils.clamp(this.group.position.z, -14, 234);
       this.heading = Math.atan2(dir.x, dir.y);
       // smooth turn
       const cur = this.group.rotation.y;
