@@ -60,14 +60,15 @@ export class ScenarioRunner {
     this._preroll = PREROLL;
 
     if (scenario === 'training') {
-      // Free-roam training: no staged events, no vehicles at all. The
-      // participant explores the town and the controls until the session
-      // leader ends the run (Stop button) and starts the first scenario.
-      // Purpose: wear off the novelty effect; nothing here is analysed.
-      // update() has no branch for this phase, so the world simply idles
-      // while the player walks around.
+      // Free-roam training: no staged events, but a FEW ORDINARY CARS drive
+      // around (ambient traffic, max 3) so the world feels alive and crossing
+      // can be practised realistically. They brake for people in the road and
+      // follow normal rules; nothing is scripted. The participant explores
+      // until the session leader ends the run (Stop button). Nothing here is
+      // analysed. update() has no branch for this phase, so the world simply
+      // idles while the player walks around.
       this._preroll = 0;
-      this.traffic?.setEnabled(false);
+      this.traffic?.setEnabled(true); // overrides the walk-like default (off)
       this.traffic?.clearScripted();
       this.av.group.visible = false;
       this.pedestrian.group.position.set(-(LAYOUT.roadWidth / 2 + LAYOUT.sidewalk / 2), 0, 0);

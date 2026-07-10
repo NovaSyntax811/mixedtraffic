@@ -62,7 +62,7 @@ against the internal id column below.
 
 | Display | Internal id (in logs) | Content | RQ |
 |---|---|---|---|
-| Training | training | Free roam, no staged events, no vehicles; controls and world familiarity, not analysed; the session leader ends it with Stop | Training |
+| Training | training | Free roam with a few ordinary ambient cars (nothing scripted); controls and world familiarity, not analysed; the session leader ends it with Stop | Training |
 | Scenario 1 | 1 | Human car, no signals at all; only the implicit motion cue | RQ1 |
 | Scenario 2 | 2 | Automated car, full eHMI yield (light band, display, sound) | RQ1 |
 | Scenario 3 | 6 | The AV yields; the honking driver behind it, hidden from the player by the AV, overtakes | RQ3/4 |

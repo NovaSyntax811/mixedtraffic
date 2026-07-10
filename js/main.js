@@ -5,7 +5,7 @@ import { AV } from './vehicle.js?v=36';
 import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=55';
 import { EHMISound } from './audio.js?v=17';
 import { BehaviorLogger, showConfidenceCheck, showWalkSurvey } from './logger.js?v=16';
-import { ScenarioRunner } from './scenarios.js?v=60';
+import { ScenarioRunner } from './scenarios.js?v=61';
 
 const { scene, camera, renderer, composer, setTimeOfDay } = createScene();
 
@@ -46,7 +46,7 @@ const SCENARIO_RECAP = {
   walk: { title: 'Extra E', lines: [['🚶 You', 'take a walk through town: W to walk where you look, mouse to turn'], ['🟦 Glowing fields', 'mark where your walk continues; step into one and see what happens'], ['🤝 Crossing is your call', 'cross the street whenever you choose, on whichever side you like']] },
   // Free-roam training: short, nothing staged, nothing analysed. Purpose is
   // only controls and world familiarity before the first scenario.
-  training: { title: 'Training', lines: [['🚶 You', 'explore the little town freely: W walks where you look, the mouse turns your head'], ['🛣 No task yet', 'walk around, cross the street if you like, get comfortable with the controls'], ['✅ When you feel ready', 'tell the session leader and the first scenario begins']] },
+  training: { title: 'Training', lines: [['🚶 You', 'explore the little town freely: W walks where you look, the mouse turns your head'], ['🚗 Ordinary traffic', 'a few cars drive around; behave as you naturally would'], ['🛣 No task yet', 'walk around, cross the street if you like, get comfortable with the controls'], ['✅ When you feel ready', 'tell the session leader and the first scenario begins']] },
 };
 // Show the centered "who's who" briefing for a scenario; the run starts when
 // the user confirms (recapStart). Falls back to running directly if there is
