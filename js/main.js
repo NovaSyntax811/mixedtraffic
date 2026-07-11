@@ -78,7 +78,7 @@ const phaseLabel = document.getElementById('phaseLabel');
 
 const runner = new ScenarioRunner({
   av, humanCar, pedestrian, cyclist, mergingCar, traffic, npcs, sound, logger,
-  onPhase: (p) => { phaseLabel.textContent = p; },
+  onPhase: (p) => { phaseLabel.textContent = p; $('controlsBoard').classList.toggle('hidden', p !== 'training'); },
   onMessage: (m) => { hudMsg.textContent = m; },
   onComplete: async () => {
     const run = logger.finishRun(); // snapshot now — a new run may start while the dialog is open
@@ -161,12 +161,15 @@ function moveDir() {
 const camModes = ['pedestrian', 'cyclist', 'observer', 'cinematic'];
 let camMode = 'pedestrian';
 let cinT = 0;
+// Free-roam training walks at 1.5x the normal pace so the short session covers
+// more ground; reset to 1x for every other scenario.
+let walkSpeedMultiplier = 1;
 
 function setCamera(mode) {
   camMode = mode;
   document.querySelectorAll('#camerabar [data-cam]').forEach((b) =>
     b.classList.toggle('active', b.dataset.cam === mode));
-  pedestrian.speed = mode === 'cyclist' ? 4.0 : 1.5; // cyclist embodiment is faster
+  pedestrian.speed = (mode === 'cyclist' ? 4.0 : 1.5) * walkSpeedMultiplier; // cyclist embodiment is faster
 }
 function cycleCamera() {
   setCamera(camModes[(camModes.indexOf(camMode) + 1) % camModes.length]);
@@ -281,6 +284,7 @@ function beginRun(scenario, { quietEdge = false, protocolStep = null } = {}) {
   // up the street.
   const walkLike = scenario === 'walk' || scenario === 10 || scenario === 'training';
   traffic.setEnabled(walkLike ? false : $('toggleTraffic').checked);
+  walkSpeedMultiplier = scenario === 'training' ? 1.5 : 1;
   if (walkLike) {
     setCamera('pedestrian');
     fpvYaw = 0;        // face north (+Z), so W walks up the street
@@ -374,6 +378,8 @@ $('stopBtn').addEventListener('click', () => {
   setBlackout(false);
   sound.stopDistractor();
   runner.reset();
+  walkSpeedMultiplier = 1;
+  setCamera(camMode);
   toggleAdmin(false);
 });
 
