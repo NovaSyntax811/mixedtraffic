@@ -134,11 +134,17 @@ export class BehaviorLogger {
   }
 
   download() {
-    const blob = new Blob([JSON.stringify({ exported: new Date().toISOString(), runs: this.runs }, null, 2)],
-      { type: 'application/json' });
+    // `participant` is set by the quantitative flow (URL ?p=...); null in
+    // moderated qualitative sessions, where the researcher names the file.
+    const payload = {
+      exported: new Date().toISOString(),
+      participant: this.participant ?? null,
+      runs: this.runs,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `ehmi-behavior-log-${Date.now()}.json`;
+    a.download = `ehmi-study-${this.participant ?? 'log'}-${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
   }
@@ -249,22 +255,49 @@ const WALK_SURVEYS = {
   ],
 };
 
-// Render the survey for one station kind; resolves to { itemId: answer, ... }
-// once every item is answered and Continue is pressed.
-export function showWalkSurvey(kind) {
-  const items = WALK_SURVEYS[kind];
-  if (!items) return Promise.resolve(null);
+// Generic in-app form: renders question items into the shared #walkSurvey
+// modal and resolves to { itemId: answer, ... } once every required item is
+// answered and Continue is pressed. Item types:
+//   likert — 1 to 7 buttons
+//   choice — one of item.options [[value, label], ...]
+//   text   — free text area (required unless item.optional)
+//   note   — plain instruction paragraph, no input
+export function showForm(items, title = 'Quick questions') {
   return new Promise((resolve) => {
     const dialog = document.getElementById('walkSurvey');
     const body = document.getElementById('wsBody');
     const submit = document.getElementById('wsSubmit');
+    const titleEl = document.getElementById('wsTitle');
+    if (titleEl) titleEl.textContent = title;
     body.innerHTML = '';
     const answers = {};
+    const required = items.filter((it) => it.type !== 'note' && !it.optional);
+    const update = () => {
+      submit.disabled = required.some((it) => answers[it.id] === undefined || answers[it.id] === '');
+    };
 
     for (const item of items) {
+      if (item.type === 'note') {
+        const n = document.createElement('p');
+        n.className = 'form-note';
+        n.textContent = item.label;
+        body.appendChild(n);
+        continue;
+      }
       const q = document.createElement('p');
       q.textContent = item.label;
       body.appendChild(q);
+      if (item.type === 'text') {
+        const ta = document.createElement('textarea');
+        ta.rows = 2;
+        ta.addEventListener('input', () => {
+          const v = ta.value.trim();
+          if (v) answers[item.id] = v; else delete answers[item.id];
+          update();
+        });
+        body.appendChild(ta);
+        continue;
+      }
       const row = document.createElement('div');
       row.className = 'row wrap';
       const opts = item.type === 'likert'
@@ -276,18 +309,24 @@ export function showWalkSurvey(kind) {
         b.addEventListener('click', () => {
           answers[item.id] = value;
           [...row.children].forEach((x) => x.classList.toggle('selected', x === b));
-          submit.disabled = items.some((it) => answers[it.id] === undefined);
+          update();
         });
         row.appendChild(b);
       }
       body.appendChild(row);
     }
 
-    submit.disabled = true;
+    update();
     submit.onclick = () => {
       dialog.classList.add('hidden');
       resolve(answers);
     };
     dialog.classList.remove('hidden');
   });
+}
+
+// The free-walk mini survey uses the same form machinery.
+export function showWalkSurvey(kind) {
+  const items = WALK_SURVEYS[kind];
+  return items ? showForm(items) : Promise.resolve(null);
 }

@@ -97,3 +97,21 @@ button.active { background: #2d4a7a; border-color: #6fa8ff; }
 .modal-box button.selected { background: #2d4a7a; border-color: #6fa8ff; }
 #confidenceSubmit { margin-top: 6px; width: 100%; }
 #confidenceSubmit:disabled { opacity: 0.4; cursor: default; }
+
+/* Quantitative study mode (?study=1): participants never see the menus */
+.study-mode #menuBtn, .study-mode #adminBtn, .study-mode #restartBtn { display: none; }
+#readyBtn { position: absolute; bottom: 64px; left: 50%; transform: translateX(-50%);
+  font-size: 15px; padding: 10px 18px; background: #2d4a7a; border-color: #6fa8ff; }
+#readyBtn.hidden { display: none; }
+#walkSurvey .modal-box { width: 460px; max-height: 86vh; overflow-y: auto; text-align: left; }
+#walkSurvey h3 { text-align: center; }
+#walkSurvey p { font-size: 14px; margin: 10px 0 6px; }
+#walkSurvey .form-note { color: #9fb4d8; font-size: 12.5px; font-style: italic; }
+#walkSurvey .row { justify-content: flex-start; }
+#walkSurvey textarea { width: 100%; background: #1b2438; color: #e8ecf5;
+  border: 1px solid rgba(120,160,220,0.35); border-radius: 6px; padding: 6px 8px;
+  font: inherit; font-size: 13px; resize: vertical; }
+#wsSubmit { margin-top: 10px; width: 100%; }
+#wsSubmit:disabled { opacity: 0.4; cursor: default; }
+#consentDialog .modal-box p { text-align: left; font-size: 13.5px; line-height: 1.5; }
+#consentContinue:disabled { opacity: 0.4; cursor: default; }

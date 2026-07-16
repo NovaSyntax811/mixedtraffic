@@ -97,6 +97,28 @@ situations. Answers are appended to the walk run's event log as
 `walk_survey` events. The admin menu's confidence-check toggle also switches
 these mini surveys off for sessions where the probing happens verbally.
 
+## Quantitative mode (?study=1)
+
+Opening the page with `?study=1` (optionally `&p=P07`) starts a self-running
+session without a moderator: consent, demographics, intro, free-roam training
+(ends via the "I feel ready" button), then the four study scenarios in a
+**balanced Latin square** order, each followed by an in-app form (the RQ items
+plus the six **STS-AD** situational trust items, Holthausen et al.,
+AutomotiveUI 2020, adapted to "the car" so the human-driven baseline uses the
+same items), a final questionnaire (pro-sociality block: PLACEHOLDER items,
+replace with the scale from the paper Akib shared), and an automatic results
+download named after the participant id.
+
+- The Latin square row comes from the number in the participant id (P01 row 1,
+  P02 row 2, ... modulo 4), so balance is controlled by numbering participants.
+- Every record carries the participant id; runs carry `orderPos` (1 to 4) for
+  order-effect checks.
+- Result upload to a server is deliberately not wired yet (team decision);
+  `submitResults()` in `js/quantflow.js` is the single place to add it later.
+- If an accident happens mid-study, the scenario restarts for the participant
+  after the accident dialog.
+- Without `?study=1` the build behaves exactly like the qualitative one.
+
 ## Debiasing rules (implemented)
 
 So that neither the player nor a watching group is primed:

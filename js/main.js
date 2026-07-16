@@ -4,7 +4,8 @@ import { createScene, LAYOUT } from './scene.js?v=48';
 import { AV } from './vehicle.js?v=36';
 import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=55';
 import { EHMISound } from './audio.js?v=17';
-import { BehaviorLogger, showConfidenceCheck, showWalkSurvey } from './logger.js?v=16';
+import { BehaviorLogger, showConfidenceCheck, showWalkSurvey } from './logger.js?v=17';
+import { isQuantMode, runQuantStudy } from './quantflow.js?v=1';
 import { ScenarioRunner } from './scenarios.js?v=61';
 
 const { scene, camera, renderer, composer, setTimeOfDay } = createScene();
@@ -76,6 +77,10 @@ const logger = new BehaviorLogger();
 const hudMsg = document.getElementById('hudMsg');
 const phaseLabel = document.getElementById('phaseLabel');
 
+// Quantitative mode: while set, a completed run is handed to the study flow
+// (which shows the per-scenario form) instead of the default dialog logic.
+let quantRunResolver = null;
+
 const runner = new ScenarioRunner({
   av, humanCar, pedestrian, cyclist, mergingCar, traffic, npcs, sound, logger,
   onPhase: (p) => { phaseLabel.textContent = p; },
@@ -85,6 +90,14 @@ const runner = new ScenarioRunner({
     setBlackout(false);             // restore vision for the dialog (audio-only study)
     sound.stopDistractor();
     sound.audioOnlyBoost = false;
+    // Quantitative flow active: hand the run over, it shows the study form
+    // and calls logger.completeRun itself.
+    if (quantRunResolver) {
+      const resolve = quantRunResolver;
+      quantRunResolver = null;
+      resolve(run);
+      return;
+    }
     // The confidence check can be switched off in the admin menu (e.g. when a
     // focus-group session runs long and the probes happen verbally instead).
     if ($('toggleConfidence').checked) {
@@ -339,7 +352,11 @@ $('introNext').addEventListener('click', () => { if (introStep < INTRO_STEPS) { 
 $('introBack').addEventListener('click', () => { if (introStep > 1) { introStep--; renderIntroStep(); } });
 $('introStart').addEventListener('click', () => {
   $('introDialog').classList.add('hidden');
-  $('scenarioMenu').classList.remove('hidden');
+  // In quantitative mode the flow controller takes over after the intro; the
+  // participant never sees a scenario list.
+  if (!document.body.classList.contains('study-mode')) {
+    $('scenarioMenu').classList.remove('hidden');
+  }
 });
 
 // Public scenario menu (☰). Its cards are as debiased as everything else:
@@ -438,6 +455,12 @@ $('accidentOk').addEventListener('click', () => {
   traffic.setEnabled(false);
   traffic.setEnabled(trafficWasOn);
   accidentShown = false;
+  // Quantitative flow: the aborted run never reaches onComplete, so restart
+  // the same scenario for the participant; the armed waitRun() resolver picks
+  // up the retry's completion instead.
+  if (document.body.classList.contains('study-mode') && quantRunResolver) {
+    showBriefing(selectedScenario);
+  }
 });
 
 // Pedestrian vs. every vehicle, using oriented bounding boxes: a moving
@@ -697,3 +720,32 @@ function animate() {
   composer.render();
 }
 animate();
+
+// ---------- Quantitative study mode (?study=1) ----------
+// Self-running session: consent, demographics, intro, free-roam training,
+// the four scenarios in a balanced Latin square order with in-app forms
+// (RQ items + STS-AD), final questionnaire, results download. The menus are
+// hidden; the O-key admin menu stays available for researcher testing.
+if (isQuantMode()) {
+  document.body.classList.add('study-mode');
+  $('introDialog').classList.add('hidden'); // the flow shows it after consent
+  $('consentCheck').addEventListener('change', (e) => {
+    $('consentContinue').disabled = !e.target.checked;
+  });
+  $('endDownloadBtn').addEventListener('click', () => logger.download());
+  runQuantStudy({
+    logger,
+    labels: SCENARIO_LABELS,
+    startScenario: (id) => {
+      selectedScenario = id;
+      $('scenarioLabel').textContent = SCENARIO_LABELS[id];
+      showBriefing(id);
+    },
+    stopRun: () => { setBlackout(false); sound.stopDistractor(); runner.reset(); },
+    waitRun: () => new Promise((res) => { quantRunResolver = res; }),
+    hud: (m) => { hudMsg.textContent = m; },
+  }).catch((err) => {
+    console.error('[study] flow error', err);
+    hudMsg.textContent = 'Something went wrong. Please tell the team and reload the page.';
+  });
+}

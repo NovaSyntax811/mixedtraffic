@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>eHMI Simulation · Prosocial AV Communication</title>
-<link rel="stylesheet" href="style.css?v=2" />
+<link rel="stylesheet" href="style.css?v=3" />
 <script type="importmap">
 {
   "imports": {
@@ -27,6 +27,9 @@
     </div>
 
     <button id="adminBtn" class="panel" title="Admin menu (O)">⚙</button>
+
+    <!-- Quantitative mode: ends the free-roam training -->
+    <button id="readyBtn" class="panel hidden">✅ I feel ready, start the study</button>
 
     <div id="hud" class="panel">
       <span id="hudMsg">You can walk around freely. The next situation will start in a moment.</span>
@@ -243,9 +246,36 @@
        title stays neutral, questions never name a domain) ===== -->
   <div id="walkSurvey" class="modal hidden">
     <div class="modal-box">
-      <h3>Quick questions</h3>
+      <h3 id="wsTitle">Quick questions</h3>
       <div id="wsBody"></div>
       <button id="wsSubmit" disabled>Continue</button>
+    </div>
+  </div>
+
+  <!-- ===== Quantitative study mode (?study=1): consent + end screens ===== -->
+  <div id="consentDialog" class="modal hidden">
+    <div class="modal-box recap-box">
+      <h3>Consent</h3>
+      <p>This study examines how automated cars should communicate with people
+      on foot, using a browser simulation. It takes about 20 to 25 minutes.
+      Your interactions and questionnaire answers are recorded pseudonymously
+      (a participant code, no name) and used only for this university course
+      project. Participation is voluntary; you can stop at any time by closing
+      this page, without giving reasons and without disadvantages.</p>
+      <!-- Replace the paragraph above with the final consent wording (Hina). -->
+      <p><label><input id="consentCheck" type="checkbox" /> I have read the
+      information above and agree to take part.</label></p>
+      <button id="consentContinue" disabled>Continue</button>
+    </div>
+  </div>
+
+  <div id="studyEndDialog" class="modal hidden">
+    <div class="modal-box">
+      <h3>Thank you!</h3>
+      <p>You have completed the study. Your results file has been downloaded
+      automatically. Please send it to the team as instructed in your
+      invitation. You can close this page afterwards.</p>
+      <button id="endDownloadBtn">⬇ Download results again</button>
     </div>
   </div>
 
@@ -258,6 +288,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=63"></script>
+  <script type="module" src="js/main.js?v=64"></script>
 </body>
 </html>
