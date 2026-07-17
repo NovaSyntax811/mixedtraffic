@@ -210,7 +210,7 @@ export class ScenarioRunner {
   // lets the person wait anywhere along the kerb and have the car respond to
   // them, not to a predetermined crossing point.
   _updatePedestrianDetection(dt) {
-    if (this.scenario === 1 || this.scenario === 4 || this.scenario === 'walk' || this.scenario === 10) return;
+    if (this.scenario === 1 || this.scenario === 4 || this.scenario === 'walk' || this.scenario === 10 || this.scenario === 'trial') return;
     // Once the AV has committed to its stop (action phase onward), freeze the
     // target so it does not chase the pedestrian as they step into the road.
     if (this.phase !== 'approach' && this.phase !== 'detection') return;
@@ -301,7 +301,8 @@ export class ScenarioRunner {
       return;
     }
 
-    if (this.scenario === 'walk' || this.scenario === 10) this._updateWalk(dt);
+    if (this.scenario === 'trial') this._updateTrial(dt);
+    else if (this.scenario === 'walk' || this.scenario === 10) this._updateWalk(dt);
     else if (this.scenario === 4) this._updateMerge(dt);
     else if (this.scenario === 1) this._updateBaseline(dt);
     else if (this.scenario === 9) this._updateAmbiguous(dt);
@@ -770,6 +771,128 @@ export class ScenarioRunner {
   _cleanupStationActors() {
     this.npcs?.forEach((n) => n.hide());
     this.traffic?.clearScripted();
+  }
+
+  // ---------- Quantitative 2x2 trials ----------
+  // One parametric trial for the factorial design. cfg:
+  //   ehmi       true = full communicative package (band, display, yield
+  //              chime); false = same vehicle with the package dark/silent.
+  //              Engine hum and braking sounds are identical in both levels.
+  //   proximity  'player' | 'npc' — whose kerb position the car stops at
+  //              (nose a constant 1.5 m short of the target's z).
+  //   npc        false = no co-present pedestrian (fillers); default present.
+  //   npcCrosses whether the NPC steps off npcDelayMs after the stop/signal.
+  //   stops      false = non-stopping filler, the car just drives through.
+  //   mirrored   swaps who stands nearer the approaching car (the two kerb
+  //              slots are 7 m apart on the same pavement).
+  startTrial(cfg) {
+    this.reset();
+    this.scenario = 'trial';
+    this.trial = cfg;
+    this.running = true;
+    this.logger.startRun('trial');
+    this._preroll = 0;
+    this.traffic?.setEnabled(false);
+    this.traffic?.clearScripted();
+    this.humanCar.hide();
+
+    // Kerb slots on the west pavement; the car approaches from the south.
+    const SOUTH = 10, NORTH = 17;
+    const pSlot = cfg.mirrored ? NORTH : SOUTH;
+    const nSlot = cfg.mirrored ? SOUTH : NORTH;
+    this.pedestrian.group.position.set(-5.5, 0, pSlot);
+    this.pedestrian.heading = Math.PI / 2;
+    this.pedestrian.group.rotation.y = Math.PI / 2;
+    if (cfg.npc !== false) this.npcs?.[0]?.place(-5.5, nSlot, Math.PI / 2);
+
+    // Factor B with a CONSTANT stop distance: only the target person varies.
+    this._trialStopZ = (cfg.proximity === 'npc' ? nSlot : pSlot) - 1.5;
+    this._npcTimer = null;
+    this._npcCrossed = false;
+
+    this.av.group.visible = true;
+    this.av.group.position.set(-1.9, 0, -55);
+    this.av.group.rotation.y = 0;
+    this.av.speed = this.approachSpeed;
+    this.av.targetSpeed = this.approachSpeed;
+    this.av.setBandState('neutral', true);
+    this.av.setDisplay('off');
+    this.setPhase('approach', 'You want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross (W/↑).');
+  }
+
+  _updateTrial(dt) {
+    const cfg = this.trial;
+    const p = this.pedestrian.group.position;
+    const npc = this.npcs?.[0];
+    switch (this.phase) {
+      case 'approach': {
+        if (cfg.stops === false) {
+          // Non-stopping filler: the car simply drives through. Breaks the
+          // "the car always stops" learning across the session.
+          if (this.av.group.position.z > 55) this._endTrial();
+          return;
+        }
+        if (cfg.ehmi && this._trialStopZ - this.av.frontZ < 25) {
+          this.av.setBandState('assessing');
+          this.av.setDisplay('detecting');
+        }
+        const gap = this._brakeToStopLine(this.av, this._trialStopZ);
+        if (this.av.speed < 0.3 && gap < 1.0) {
+          this.av.targetSpeed = 0;
+          if (cfg.ehmi) {
+            this.av.setBandState('yielding');
+            this.av.setDisplay('yielding');
+            this.sound.playGoAhead();
+          }
+          // Latency reference: the explicit cue when present, otherwise the
+          // full stop (same convention as the old baseline scenario).
+          this.logger.signalOnset();
+          if (cfg.npc !== false && cfg.npcCrosses) this._npcTimer = (cfg.npcDelayMs ?? 3500) / 1000;
+          this.setPhase('waiting');
+        }
+        break;
+      }
+      case 'waiting': {
+        this._brakeToStopLine(this.av, this._trialStopZ);
+        if (this._npcTimer !== null) {
+          this._npcTimer -= dt;
+          if (this._npcTimer <= 0) {
+            this._npcTimer = null;
+            npc?.startCross(5.6);
+            this.logger.event('npc_move_start');
+          }
+        }
+        if (!this._npcCrossed && npc?.group.visible && npc.state === 'idle' && npc.group.position.x > 5) {
+          this._npcCrossed = true;
+          this.logger.event('npc_cross_complete');
+        }
+        const half = LAYOUT.roadWidth / 2;
+        const playerCrossed = p.x > half + 0.5;
+        const playerInRoad = Math.abs(p.x) < half + 0.4;
+        const npcInRoad = !!npc?.group.visible && Math.abs(npc.group.position.x) < half + 0.4;
+        const everyoneClear = !playerInRoad && !npcInRoad;
+        // Resume once the crossing resolved (crossed, or the wait window ran
+        // out) and nobody is in the road; hard cap so the flow never hangs.
+        if (((playerCrossed || this._timer > 16) && everyoneClear) || this._timer > 40) {
+          if (cfg.ehmi) { this.av.setDisplay('off'); this.av.setBandState('neutral'); }
+          this.av.targetSpeed = this.approachSpeed;
+          this.setPhase('leave', 'The car drives on.');
+        }
+        break;
+      }
+      case 'leave':
+        if (this.av.group.position.z > this._trialStopZ + 40) this._endTrial();
+        break;
+    }
+  }
+
+  // Trials skip the long observation cooldown of the qualitative scenarios:
+  // the next screen (form or next trial) should come promptly.
+  _endTrial() {
+    this.running = false;
+    this.av.targetSpeed = 0;
+    this.setPhase('done', 'This situation is complete.');
+    this.onComplete?.();
   }
 
   _finish() {

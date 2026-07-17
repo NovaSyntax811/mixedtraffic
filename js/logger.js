@@ -129,7 +129,9 @@ export class BehaviorLogger {
     if (!run) return;
     run.confidence = confidence;
     run.events.push({ t: Math.round(performance.now()), name: 'confidence_check', ...confidence });
-    this.runs.push(run);
+    // Aborted runs (accident fade-to-end) are already in the list; attach the
+    // answers without duplicating the record.
+    if (!this.runs.includes(run)) this.runs.push(run);
     console.log('[log] run complete:', run);
   }
 

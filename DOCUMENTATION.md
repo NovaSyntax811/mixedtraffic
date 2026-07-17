@@ -97,26 +97,48 @@ situations. Answers are appended to the walk run's event log as
 `walk_survey` events. The admin menu's confidence-check toggle also switches
 these mini surveys off for sessions where the probing happens verbally.
 
-## Quantitative mode (?study=1)
+## Quantitative mode (?study=1): the 2x2 factorial
 
-Opening the page with `?study=1` (optionally `&p=P07`) starts a self-running
-session without a moderator: consent, demographics, intro, free-roam training
-(ends via the "I feel ready" button), then the four study scenarios in a
-**balanced Latin square** order, each followed by an in-app form (the RQ items
-plus the six **STS-AD** situational trust items, Holthausen et al.,
-AutomotiveUI 2020, adapted to "the car" so the human-driven baseline uses the
-same items), a final questionnaire (pro-sociality block: PLACEHOLDER items,
-replace with the scale from the paper Akib shared), and an automatic results
-download named after the participant id.
+Opening the page with `?study=1` (participant id via `&p=P07` or Prolific's
+`PROLIFIC_PID`) starts a self-running session without a moderator.
 
-- The Latin square row comes from the number in the participant id (P01 row 1,
-  P02 row 2, ... modulo 4), so balance is controlled by numbering participants.
-- Every record carries the participant id; runs carry `orderPos` (1 to 4) for
-  order-effect checks.
-- Result upload to a server is deliberately not wired yet (team decision);
-  `submitResults()` in `js/quantflow.js` is the single place to add it later.
-- If an accident happens mid-study, the scenario restarts for the participant
-  after the accident dialog.
+**Design: 2x2 within subjects.**
+- **Factor A, eHMI**: present (full communicative package: light band,
+  windshield display, yield chime) vs absent. Both levels use the IDENTICAL
+  vehicle body; absent only darkens and silences the package. Engine hum and
+  braking sounds are constant across levels, so Factor A is the communicative
+  package and nothing else.
+- **Factor B, proximity**: the car stops nearer to the participant or nearer
+  to a co-present NPC pedestrian 7 m along the same kerb. The stop distance to
+  the target (nose 1.5 m short) is constant; only whose position it is varies.
+
+**Trials (10 per participant, seeded shuffle, seed logged).**
+- 4 critical (the 2x2 cells): the NPC steps off a fixed 3.5 s after the
+  stop/signal, preserving the early/late step-off window logic.
+- 2 exploratory NPC-stays trials (out of the confirmatory set).
+- 4 fillers, including two NON-stopping cars, so "the car always stops" can
+  never be learned; two stopping trials without an NPC.
+- Mirroring (who stands nearer the approaching car) is counterbalanced across
+  participants by the participant number's parity.
+
+**Flow**: consent, demographics, intro, free-roam training with a GATE (one
+successful crossing required before "I feel ready" unlocks), the 10 trials
+(post-trial screen after critical trials only: felt safety, addressee
+attribution plus confidence, and four obligation/acknowledgment items), final
+questionnaire (proximity manipulation check, pro-sociality PLACEHOLDER items
+to be replaced with the scale from the paper Akib shared, open comment), and
+an automatic results download named after the participant id.
+
+**Logging**: signal onset (explicit cue when present, full stop otherwise),
+first step-off, hesitations, false starts, a ~10 Hz trace of head yaw and
+position per trial (scanning analysis), `npc_move_start` and
+`npc_cross_complete` events, trial config and order position on every run,
+Prolific PID/STUDY_ID/SESSION_ID passthrough, session seed and mirroring.
+
+- Result upload is deliberately not wired yet (team decision);
+  `submitResults()` in `js/quantflow.js` is the single integration point.
+- Accidents fade to trial end: the run is flagged `aborted: "accident"` (the
+  incident log) and the session continues; no retry loop.
 - Without `?study=1` the build behaves exactly like the qualitative one.
 
 ## Debiasing rules (implemented)

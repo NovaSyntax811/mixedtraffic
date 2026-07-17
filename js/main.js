@@ -5,8 +5,8 @@ import { AV } from './vehicle.js?v=36';
 import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=55';
 import { EHMISound } from './audio.js?v=17';
 import { BehaviorLogger, showConfidenceCheck, showWalkSurvey } from './logger.js?v=17';
-import { isQuantMode, runQuantStudy } from './quantflow.js?v=1';
-import { ScenarioRunner } from './scenarios.js?v=61';
+import { isQuantMode, runQuantStudy } from './quantflow.js?v=2';
+import { ScenarioRunner } from './scenarios.js?v=62';
 
 const { scene, camera, renderer, composer, setTimeOfDay } = createScene();
 
@@ -317,6 +317,24 @@ function startSelected() {
   showBriefing(selectedScenario); // centered "who's who" → Start scenario (walk included)
 }
 
+// Quantitative 2x2 trial starter (no briefing: every trial shares the same
+// neutral framing, the HUD instruction is the only text). The same AV body is
+// used in BOTH Factor A levels; "absent" only darkens/silences the
+// communicative package, so appearance never confounds the signal.
+function beginTrial(cfg) {
+  sound.init();
+  sound.setVolume(parseFloat($('volume').value));
+  runner.approachSpeed = parseFloat($('avSpeed').value);
+  setTimeOfDay('afternoon');
+  setCamera('pedestrian');
+  resetFpvLook(); // face across the street
+  av.brightness = cfg.ehmi ? parseFloat($('bandBrightness').value) : 0;
+  $('recap').classList.add('hidden');
+  $('scenarioLabel').textContent = cfg.label ?? 'Situation';
+  logger.nextMeta = { label: cfg.label, trial: { ...cfg } };
+  runner.startTrial(cfg);
+}
+
 // Trust protocol: identical-looking runs; the last one silently swaps in the
 // unaddressed-cyclist edge case. Messages must not give it away.
 function nextProtocolRun() {
@@ -455,11 +473,13 @@ $('accidentOk').addEventListener('click', () => {
   traffic.setEnabled(false);
   traffic.setEnabled(trafficWasOn);
   accidentShown = false;
-  // Quantitative flow: the aborted run never reaches onComplete, so restart
-  // the same scenario for the participant; the armed waitRun() resolver picks
-  // up the retry's completion instead.
+  // Quantitative flow: fade-to-end. The aborted run (already flagged
+  // aborted:"accident" = the incident log) is handed to the flow so the
+  // session simply continues with the next screen; no retry loop.
   if (document.body.classList.contains('study-mode') && quantRunResolver) {
-    showBriefing(selectedScenario);
+    const resolve = quantRunResolver;
+    quantRunResolver = null;
+    resolve(logger.runs[logger.runs.length - 1] ?? null);
   }
 });
 
@@ -583,6 +603,8 @@ const clock = new THREE.Clock();
 const ROAD_HALF = LAYOUT.roadWidth / 2;
 let sirenWasActive = false;
 let lastLookingAtVehicle = false;
+const quantTraceActive = isQuantMode();
+let traceAcc = 0;
 
 // ---------- Free-roam trigger fields ----------
 // Logic adapted from Julius's branch: between encounters a pulsing field marks
@@ -713,6 +735,19 @@ function animate() {
   lastLookingAtVehicle = lookingAtVehicle;
   logger.tick(inRoad, pedestrian.moving, avDist, lookingAtVehicle, dt * 1000, Math.abs(p.x) - ROAD_HALF);
 
+  // Quantitative mode: ~10 Hz trace of head yaw and position per run, for the
+  // scanning (H5) and movement analyses. Capped so a stuck run cannot balloon.
+  if (quantTraceActive && runner.running && logger.current) {
+    traceAcc += dt;
+    if (traceAcc >= 0.1) {
+      traceAcc = 0;
+      const trace = (logger.current.trace ??= []);
+      if (trace.length < 1200) {
+        trace.push({ t: Math.round(performance.now()), yaw: +fpvYaw.toFixed(3), x: +p.x.toFixed(2), z: +p.z.toFixed(2) });
+      }
+    }
+  }
+
   // Sound update with camera-relative panning
   const camRight = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
   sound.update(av.group.position, camera.position, camRight, av.speed, av.targetSpeed < av.speed - 0.3);
@@ -741,6 +776,8 @@ if (isQuantMode()) {
       $('scenarioLabel').textContent = SCENARIO_LABELS[id];
       showBriefing(id);
     },
+    startTrial: (cfg) => beginTrial(cfg),
+    playerX: () => pedestrian.group.position.x,
     stopRun: () => { setBlackout(false); sound.stopDistractor(); runner.reset(); },
     waitRun: () => new Promise((res) => { quantRunResolver = res; }),
     hud: (m) => { hudMsg.textContent = m; },
