@@ -47,8 +47,18 @@ export class BehaviorLogger {
 
   signalOnset() {
     if (!this.current || this.current.signalOnset !== null) return;
-    this.current.signalOnset = performance.now();
+    const c = this.current;
+    c.signalOnset = performance.now();
     this.event('signal_onset');
+    // Early crossing: the participant stepped off BEFORE the signal existed.
+    // Backfill a NEGATIVE reaction time (crossing minus signal) and flag it,
+    // so early step-offs stay analyzable (H3 early-window) instead of
+    // silently producing a null RT with a temporally inverted event order.
+    if (c.crossingStart !== null && c.reactionTimeMs === null) {
+      c.reactionTimeMs = Math.round(c.crossingStart - c.signalOnset);
+      c.crossedBeforeSignal = true;
+      this.event('crossed_before_signal', { reactionTimeMs: c.reactionTimeMs });
+    }
   }
 
   // Call every frame: in-road flag, moving flag, vehicle distance,
@@ -113,7 +123,26 @@ export class BehaviorLogger {
   finishRun() {
     const run = this.current;
     this.current = null;
+    if (run && run.crossingStart === null) {
+      // No crossing happened: finalize the gaze proxy over the whole run, so
+      // the scanning measure exists for non-crossing trials too (there it
+      // means "scanned the vehicle during the trial").
+      run.gazeAtVehiclePreCrossMs = Math.round(run.gazeAtVehiclePreCrossMs);
+      run.scannedBeforeCrossing = run.gazeAtVehiclePreCrossMs > 400;
+    }
     return run;
+  }
+
+  // End the current run CLEANLY (moderator Stop, training end): pushed with an
+  // `ended` reason, never with the aborted flag. Without this, the next
+  // startRun() would sweep the open run in as aborted:true, which is how the
+  // pilot's training record got a spurious abort.
+  closeRun(reason = 'stopped') {
+    const run = this.finishRun();
+    if (!run) return;
+    run.ended = reason;
+    this.runs.push(run);
+    console.log('[log] run closed:', reason);
   }
 
   // End the current run without a confidence check (e.g. after an accident)

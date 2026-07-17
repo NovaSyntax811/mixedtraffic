@@ -4,8 +4,8 @@ import { createScene, LAYOUT } from './scene.js?v=48';
 import { AV } from './vehicle.js?v=36';
 import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=55';
 import { EHMISound } from './audio.js?v=17';
-import { BehaviorLogger, showConfidenceCheck, showWalkSurvey } from './logger.js?v=17';
-import { isQuantMode, runQuantStudy } from './quantflow.js?v=2';
+import { BehaviorLogger, showConfidenceCheck, showWalkSurvey } from './logger.js?v=18';
+import { isQuantMode, runQuantStudy } from './quantflow.js?v=3';
 import { ScenarioRunner } from './scenarios.js?v=62';
 
 const { scene, camera, renderer, composer, setTimeOfDay } = createScene();
@@ -406,6 +406,7 @@ document.querySelectorAll('#adminMenu [data-scn]').forEach((b) => {
 // Moderator control: end the current scenario immediately (back to idle, the
 // participant can roam) without starting a new one.
 $('stopBtn').addEventListener('click', () => {
+  logger.closeRun('stopped'); // close the open run cleanly (no aborted flag)
   setBlackout(false);
   sound.stopDistractor();
   runner.reset();
@@ -778,7 +779,7 @@ if (isQuantMode()) {
     },
     startTrial: (cfg) => beginTrial(cfg),
     playerX: () => pedestrian.group.position.x,
-    stopRun: () => { setBlackout(false); sound.stopDistractor(); runner.reset(); },
+    stopRun: () => { logger.closeRun('training_complete'); setBlackout(false); sound.stopDistractor(); runner.reset(); },
     waitRun: () => new Promise((res) => { quantRunResolver = res; }),
     hud: (m) => { hudMsg.textContent = m; },
   }).catch((err) => {
