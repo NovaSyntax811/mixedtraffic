@@ -95,11 +95,23 @@ export function isQuantMode() {
   return new URLSearchParams(location.search).has('study');
 }
 
-// Single integration point for a future results endpoint. For now: no-op,
-// the participant downloads the JSON at the end instead.
+// Upload the session to the collection platform (Netlify Function backed by
+// Netlify Blobs, see netlify/functions/submit.mjs). On localhost or any
+// failure this returns false and the flow falls back to the local download,
+// so a broken network can never lose a session.
 async function submitResults(payload) {
-  // TODO (team decision: add later): POST `payload` to a collection endpoint.
-  return false; // false = not submitted, fall back to download
+  try {
+    const res = await fetch('/api/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return true;
+  } catch (err) {
+    console.warn('[study] upload failed, falling back to download:', err.message);
+    return false;
+  }
 }
 
 const $ = (id) => document.getElementById(id);
@@ -186,8 +198,9 @@ export async function runQuantStudy(ctx) {
   const fin = await showForm(FINAL_FORM, 'Final questions');
   logger.runs.push({ record: 'final_questionnaire', participant: pid, answers: fin, totalMs: Math.round(performance.now() - t0) });
 
-  // 7. Wrap up: try the (future) endpoint, otherwise download
+  // 7. Wrap up: upload to the collection platform, download as fallback
   const submitted = await submitResults({ participant: pid, runs: logger.runs });
+  $(submitted ? 'endMsgUploaded' : 'endMsgDownload').classList.remove('hidden');
   show('studyEndDialog');
   if (!submitted) logger.download();
   ctx.hud('The study is complete. Thank you!');

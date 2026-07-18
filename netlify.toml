@@ -1,5 +1,11 @@
 # Netlify configuration for the eHMI simulation.
-# Static site, no build step: just publish the repository root as-is.
+# Static site, no build step: publish the repository root as-is.
+# The functions collect quantitative study results into Netlify Blobs
+# (POST /api/submit from participants; GET /api/results for the team,
+# protected by the RESULTS_KEY environment variable set in the Netlify UI).
 [build]
   publish = "."
   command = ""
+
+[functions]
+  directory = "netlify/functions"

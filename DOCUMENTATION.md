@@ -135,8 +135,15 @@ position per trial (scanning analysis), `npc_move_start` and
 `npc_cross_complete` events, trial config and order position on every run,
 Prolific PID/STUDY_ID/SESSION_ID passthrough, session seed and mirroring.
 
-- Result upload is deliberately not wired yet (team decision);
-  `submitResults()` in `js/quantflow.js` is the single integration point.
+- **Results platform**: at the end of a session the data is POSTed to
+  `/api/submit` (a Netlify Function storing each session in Netlify Blobs).
+  If the upload fails (e.g. on localhost), the participant gets the local
+  download as fallback and the end screen says which of the two happened.
+  The team reads the data via `results.html` on the deployed site (or
+  `GET /api/results?key=...`), protected by a **RESULTS_KEY** environment
+  variable. One-time setup: in the Netlify UI set RESULTS_KEY to a long
+  random string, then redeploy. Without it, reading is refused (submitting
+  still works).
 - Accidents fade to trial end: the run is flagged `aborted: "accident"` (the
   incident log) and the session continues; no retry loop.
 - Without `?study=1` the build behaves exactly like the qualitative one.

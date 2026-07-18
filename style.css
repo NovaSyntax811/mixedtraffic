@@ -115,3 +115,4 @@ button.active { background: #2d4a7a; border-color: #6fa8ff; }
 #wsSubmit:disabled { opacity: 0.4; cursor: default; }
 #consentDialog .modal-box p { text-align: left; font-size: 13.5px; line-height: 1.5; }
 #consentContinue:disabled { opacity: 0.4; cursor: default; }
+#studyEndDialog p.hidden { display: none; }

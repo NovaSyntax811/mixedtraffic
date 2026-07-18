@@ -5,7 +5,7 @@ import { AV } from './vehicle.js?v=36';
 import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=55';
 import { EHMISound } from './audio.js?v=17';
 import { BehaviorLogger, showConfidenceCheck, showWalkSurvey } from './logger.js?v=18';
-import { isQuantMode, runQuantStudy } from './quantflow.js?v=3';
+import { isQuantMode, runQuantStudy } from './quantflow.js?v=4';
 import { ScenarioRunner } from './scenarios.js?v=62';
 
 const { scene, camera, renderer, composer, setTimeOfDay } = createScene();

@@ -1,0 +1,8 @@
+{
+  "name": "ehmi-sim",
+  "private": true,
+  "description": "Browser-based eHMI simulation; dependencies are only for the Netlify Functions (results collection).",
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  }
+}

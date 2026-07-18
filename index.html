@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>eHMI Simulation · Prosocial AV Communication</title>
-<link rel="stylesheet" href="style.css?v=3" />
+<link rel="stylesheet" href="style.css?v=4" />
 <script type="importmap">
 {
   "imports": {
@@ -272,10 +272,14 @@
   <div id="studyEndDialog" class="modal hidden">
     <div class="modal-box">
       <h3>Thank you!</h3>
-      <p>You have completed the study. Your results file has been downloaded
-      automatically. Please send it to the team as instructed in your
-      invitation. You can close this page afterwards.</p>
-      <button id="endDownloadBtn">⬇ Download results again</button>
+      <p id="endMsgUploaded" class="hidden">You have completed the study and
+      your results were submitted automatically. You are done and can close
+      this page.</p>
+      <p id="endMsgDownload" class="hidden">You have completed the study. The
+      automatic submission did not work, so your results file has been
+      downloaded instead. Please send it to the team as instructed in your
+      invitation, then you can close this page.</p>
+      <button id="endDownloadBtn">⬇ Download results (backup)</button>
     </div>
   </div>
 
@@ -288,6 +292,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=66"></script>
+  <script type="module" src="js/main.js?v=67"></script>
 </body>
 </html>
