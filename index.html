@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>eHMI Simulation · Prosocial AV Communication</title>
-<link rel="stylesheet" href="style.css?v=4" />
+<link rel="stylesheet" href="style.css?v=5" />
 <script type="importmap">
 {
   "imports": {
@@ -279,6 +279,18 @@
       automatic submission did not work, so your results file has been
       downloaded instead. Please send it to the team as instructed in your
       invitation, then you can close this page.</p>
+      <!-- Complexity study: ground-truth reveal, shown only by that flow -->
+      <div id="debriefBlock" class="hidden">
+        <h3>What this was about</h3>
+        <p>The car's signals were identical in every situation. What changed
+        was the traffic around you: sometimes you were alone, sometimes other
+        people crossed alongside you, and sometimes someone else had a claim
+        on the road at the same time. In one situation the car had actually
+        stopped for the person on the other side, not for you; in another a
+        cyclist came past while the car was waiting. We are studying how
+        readable the car's intention stays as the situation gets busier, and
+        nothing here was a test of you.</p>
+      </div>
       <button id="endDownloadBtn">⬇ Download results (backup)</button>
     </div>
   </div>
@@ -292,6 +304,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=67"></script>
+  <script type="module" src="js/main.js?v=68"></script>
 </body>
 </html>

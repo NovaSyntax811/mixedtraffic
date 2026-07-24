@@ -6,7 +6,8 @@ import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManage
 import { EHMISound } from './audio.js?v=17';
 import { BehaviorLogger, showConfidenceCheck, showWalkSurvey } from './logger.js?v=18';
 import { isQuantMode, runQuantStudy } from './quantflow.js?v=4';
-import { ScenarioRunner } from './scenarios.js?v=62';
+import { isComplexityMode, runComplexityStudy } from './quantflow2.js?v=1';
+import { ScenarioRunner } from './scenarios.js?v=63';
 
 const { scene, camera, renderer, composer, setTimeOfDay } = createScene();
 
@@ -70,7 +71,9 @@ const mergingCar = new MergingCar(scene);
 const humanCar = new HumanCar(scene);
 const traffic = new TrafficManager(scene);
 // Background pedestrians for the ambiguous-signal scenario
-const npcs = [new NpcPedestrian(scene, 0x4a7a8a), new NpcPedestrian(scene, 0x8a6a4a)];
+// Three background pedestrians: the ambiguous-signal scenario uses two, the
+// complexity study needs up to three (companions plus a far-kerb addressee).
+const npcs = [new NpcPedestrian(scene, 0x4a7a8a), new NpcPedestrian(scene, 0x8a6a4a), new NpcPedestrian(scene, 0x6a8a4a)];
 const sound = new EHMISound();
 const logger = new BehaviorLogger();
 
@@ -333,6 +336,23 @@ function beginTrial(cfg) {
   $('scenarioLabel').textContent = cfg.label ?? 'Situation';
   logger.nextMeta = { label: cfg.label, trial: { ...cfg } };
   runner.startTrial(cfg);
+}
+
+// Complexity study trial starter. The eHMI is CONSTANT here (full package in
+// every condition), so band brightness is never dimmed; only the traffic
+// scene varies.
+function beginComplexityTrial(cfg) {
+  sound.init();
+  sound.setVolume(parseFloat($('volume').value));
+  runner.approachSpeed = parseFloat($('avSpeed').value);
+  setTimeOfDay('afternoon');
+  setCamera('pedestrian');
+  resetFpvLook();
+  av.brightness = parseFloat($('bandBrightness').value);
+  $('recap').classList.add('hidden');
+  $('scenarioLabel').textContent = cfg.label ?? 'Situation';
+  logger.nextMeta = { label: cfg.label, ctrial: { ...cfg } };
+  runner.startComplexityTrial(cfg);
 }
 
 // Trust protocol: identical-looking runs; the last one silently swaps in the
@@ -604,7 +624,7 @@ const clock = new THREE.Clock();
 const ROAD_HALF = LAYOUT.roadWidth / 2;
 let sirenWasActive = false;
 let lastLookingAtVehicle = false;
-const quantTraceActive = isQuantMode();
+const quantTraceActive = isQuantMode() || isComplexityMode();
 let traceAcc = 0;
 
 // ---------- Free-roam trigger fields ----------
@@ -784,6 +804,31 @@ if (isQuantMode()) {
     hud: (m) => { hudMsg.textContent = m; },
   }).catch((err) => {
     console.error('[study] flow error', err);
+    hudMsg.textContent = 'Something went wrong. Please tell the team and reload the page.';
+  });
+}
+
+// ---------- Complexity study mode (?study2=1) ----------
+// Single-factor design (Traffic Complexity C1/C2/C3), eHMI held constant.
+// Self-running like the 2x2 mode and sharing its shell (consent, forms,
+// results platform), but with its own trial engine and instruments.
+if (isComplexityMode()) {
+  document.body.classList.add('study-mode');
+  $('introDialog').classList.add('hidden');
+  $('consentCheck').addEventListener('change', (e) => {
+    $('consentContinue').disabled = !e.target.checked;
+  });
+  $('endDownloadBtn').addEventListener('click', () => logger.download());
+  runComplexityStudy({
+    logger,
+    startComplexityTrial: (cfg) => beginComplexityTrial(cfg),
+    playerX: () => pedestrian.group.position.x,
+    beep: () => { sound.init(); sound.setVolume(parseFloat($('volume').value)); sound.playGoAhead(); },
+    stopRun: () => { logger.closeRun('stopped'); setBlackout(false); runner.reset(); },
+    waitRun: () => new Promise((res) => { quantRunResolver = res; }),
+    hud: (m) => { hudMsg.textContent = m; },
+  }).catch((err) => {
+    console.error('[study2] flow error', err);
     hudMsg.textContent = 'Something went wrong. Please tell the team and reload the page.';
   });
 }

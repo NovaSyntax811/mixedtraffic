@@ -148,6 +148,31 @@ Prolific PID/STUDY_ID/SESSION_ID passthrough, session seed and mirroring.
   incident log) and the session continues; no retry loop.
 - Without `?study=1` the build behaves exactly like the qualitative one.
 
+## Complexity study mode (?study2=1)
+
+The second quantitative design, on the `quant-complexity` branch. Full design
+and analysis plan: [STUDY_PLAN_COMPLEXITY.md](STUDY_PLAN_COMPLEXITY.md).
+
+Single factor, **Traffic Complexity** (C1 solo, C2 mixed-parallel, C3
+mixed-competing), with the **eHMI held constant** in every condition. Order of
+the three conditions is a Latin square keyed to the participant number;
+instantiation order within a condition is a seeded shuffle (seed logged).
+
+Flow: consent, screening (device, headphones, audio calibration tone),
+demographics plus covariates (incl. ATI short), instructions, one unscored
+practice trial, then 6 scored trials (3 levels x 2 instantiations) each
+followed by a short form, a battery after each condition block, post-study
+questions, debrief with the ground-truth reveal, then upload with local
+download as fallback.
+
+Per trial the form asks intent certainty, decision confidence, and "was the
+car communicating with you?" — the last is **scored automatically against the
+trial's ground truth** (`addresseeCorrect`), which together with confidence
+gives the calibration measure. C3 exists in two variants: the car addressing a
+far-kerb pedestrian (ground truth `other`) and an honest yield with a
+competing cyclist cutting through (ground truth `you`, the over-trust probe;
+the car never lies, so no deception is involved).
+
 ## Debiasing rules (implemented)
 
 So that neither the player nor a watching group is primed:

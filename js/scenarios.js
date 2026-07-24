@@ -210,7 +210,7 @@ export class ScenarioRunner {
   // lets the person wait anywhere along the kerb and have the car respond to
   // them, not to a predetermined crossing point.
   _updatePedestrianDetection(dt) {
-    if (this.scenario === 1 || this.scenario === 4 || this.scenario === 'walk' || this.scenario === 10 || this.scenario === 'trial') return;
+    if (this.scenario === 1 || this.scenario === 4 || this.scenario === 'walk' || this.scenario === 10 || this.scenario === 'trial' || this.scenario === 'ctrial') return;
     // Once the AV has committed to its stop (action phase onward), freeze the
     // target so it does not chase the pedestrian as they step into the road.
     if (this.phase !== 'approach' && this.phase !== 'detection') return;
@@ -301,7 +301,8 @@ export class ScenarioRunner {
       return;
     }
 
-    if (this.scenario === 'trial') this._updateTrial(dt);
+    if (this.scenario === 'ctrial') this._updateComplexityTrial(dt);
+    else if (this.scenario === 'trial') this._updateTrial(dt);
     else if (this.scenario === 'walk' || this.scenario === 10) this._updateWalk(dt);
     else if (this.scenario === 4) this._updateMerge(dt);
     else if (this.scenario === 1) this._updateBaseline(dt);
@@ -785,6 +786,139 @@ export class ScenarioRunner {
   //   stops      false = non-stopping filler, the car just drives through.
   //   mirrored   swaps who stands nearer the approaching car (the two kerb
   //              slots are 7 m apart on the same pavement).
+  // ---------- Complexity study (single-factor: Traffic Complexity) ----------
+  // The eHMI is held CONSTANT (full package always on); what varies is the
+  // traffic scene. cfg:
+  //   level         'C1' solo/unambiguous | 'C2' mixed/parallel | 'C3' mixed/competing
+  //   playerZ       kerb position of the participant (scene instantiation)
+  //   sameSideNpcs  companions on the participant's kerb who cross in parallel (C2)
+  //   oppositeNpc   an addressee on the far kerb who crosses promptly (C3a)
+  //   hazard        'cyclist' = a competing cyclist cuts through the crossing
+  //                 while the car yields (C3b, the over-trust probe). The car
+  //                 never lies: it yields honestly and simply does not speak
+  //                 for the cyclist, so this needs no deception.
+  //   groundTruth   'you' | 'other' — who the signal is really for, for
+  //                 scoring the misattribution item.
+  //   mirrored      flips the layout (companions ahead vs behind)
+  startComplexityTrial(cfg) {
+    this.reset();
+    this.scenario = 'ctrial';
+    this.trial = cfg;
+    this.running = true;
+    this.logger.startRun('ctrial');
+    this._preroll = 0;
+    this.traffic?.setEnabled(false);
+    this.traffic?.clearScripted();
+    this.humanCar.hide();
+    this.cyclist.hide();
+
+    const pz = cfg.playerZ ?? 12;
+    const dir = cfg.mirrored ? -1 : 1; // companions ahead of / behind the player
+    this.pedestrian.group.position.set(-5.5, 0, pz);
+    this.pedestrian.heading = Math.PI / 2;
+    this.pedestrian.group.rotation.y = Math.PI / 2;
+
+    // Companions on the participant's own kerb: same direction, no conflict.
+    this._companions = [];
+    const nSame = Math.min(cfg.sameSideNpcs ?? 0, this.npcs?.length ?? 0);
+    const offsets = [3, -3, 6];
+    for (let i = 0; i < nSame; i++) {
+      this.npcs[i].place(-5.5, pz + dir * offsets[i], Math.PI / 2);
+      this._companions.push(this.npcs[i]);
+    }
+    // Far-kerb addressee: the road user the signal is actually for (C3a).
+    this._addressee = null;
+    this._addresseeZ = null;
+    if (cfg.oppositeNpc && this.npcs?.[nSame]) {
+      this._addresseeZ = pz + dir * 2.5;
+      this._addressee = this.npcs[nSame];
+      this._addressee.place(5.5, this._addresseeZ, -Math.PI / 2);
+    }
+
+    // Stop 1.5 m short of whoever the signal is for: constant stop DISTANCE,
+    // only the addressee varies (so distance never confounds felt address).
+    const targetZ = (cfg.groundTruth === 'other' && this._addresseeZ !== null) ? this._addresseeZ : pz;
+    this._trialStopZ = targetZ - 1.5;
+    this._companionTimer = null;
+    this._addresseeTimer = null;
+    this._hazardFired = false;
+
+    this.av.group.visible = true;
+    this.av.group.position.set(-1.9, 0, -55);
+    this.av.group.rotation.y = 0;
+    this.av.speed = this.approachSpeed;
+    this.av.targetSpeed = this.approachSpeed;
+    this.av.setBandState('neutral', true);
+    this.av.setDisplay('off');
+    this.logger.event('ctrial_start', { level: cfg.level, inst: cfg.inst, groundTruth: cfg.groundTruth });
+    this.setPhase('approach', 'You want to reach the other side of the street. There is no marked crossing, so decide for yourself if and when to cross (W/↑).');
+  }
+
+  _updateComplexityTrial(dt) {
+    const cfg = this.trial;
+    const p = this.pedestrian.group.position;
+    const half = LAYOUT.roadWidth / 2;
+    switch (this.phase) {
+      case 'approach': {
+        if (this._trialStopZ - this.av.frontZ < 25) {
+          this.av.setBandState('assessing');
+          this.av.setDisplay('detecting');
+        }
+        const gap = this._brakeToStopLine(this.av, this._trialStopZ);
+        if (this.av.speed < 0.3 && gap < 1.0) {
+          this.av.targetSpeed = 0;
+          // eHMI is constant across all conditions: full package every time.
+          this.av.setBandState('yielding');
+          this.av.setDisplay('yielding');
+          this.sound.playGoAhead();
+          this.logger.signalOnset(); // reference for decision latency
+          if (this._companions.length) this._companionTimer = 2.0;
+          if (this._addressee) this._addresseeTimer = 1.2; // prompt reveal
+          if (cfg.hazard === 'cyclist' && !this._hazardFired) {
+            this._hazardFired = true;
+            this.cyclist.startOvertake(this.av);
+            this.logger.event('competing_cyclist_started');
+          }
+          this.setPhase('waiting');
+        }
+        break;
+      }
+      case 'waiting': {
+        this._brakeToStopLine(this.av, this._trialStopZ);
+        if (this._companionTimer !== null) {
+          this._companionTimer -= dt;
+          if (this._companionTimer <= 0) {
+            this._companionTimer = null;
+            for (const c of this._companions) c.startCross(5.6);
+            this.logger.event('companions_cross_start', { n: this._companions.length });
+          }
+        }
+        if (this._addresseeTimer !== null) {
+          this._addresseeTimer -= dt;
+          if (this._addresseeTimer <= 0) {
+            this._addresseeTimer = null;
+            this._addressee?.startCross(-5.6); // far kerb -> near kerb
+            this.logger.event('addressee_cross_start');
+          }
+        }
+        const playerCrossed = p.x > half + 0.5;
+        const playerInRoad = Math.abs(p.x) < half + 0.4;
+        const othersInRoad = (this.npcs ?? []).some((n) => n.group.visible && Math.abs(n.group.position.x) < half + 0.4);
+        const clear = !playerInRoad && !othersInRoad;
+        if (((playerCrossed || this._timer > 18) && clear) || this._timer > 40) {
+          this.av.setDisplay('off');
+          this.av.setBandState('neutral');
+          this.av.targetSpeed = this.approachSpeed;
+          this.setPhase('leave', 'The car drives on.');
+        }
+        break;
+      }
+      case 'leave':
+        if (this.av.group.position.z > this._trialStopZ + 40) this._endTrial();
+        break;
+    }
+  }
+
   startTrial(cfg) {
     this.reset();
     this.scenario = 'trial';

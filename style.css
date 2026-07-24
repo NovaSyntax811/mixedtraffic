@@ -116,3 +116,7 @@ button.active { background: #2d4a7a; border-color: #6fa8ff; }
 #consentDialog .modal-box p { text-align: left; font-size: 13.5px; line-height: 1.5; }
 #consentContinue:disabled { opacity: 0.4; cursor: default; }
 #studyEndDialog p.hidden { display: none; }
+#debriefBlock.hidden { display: none; }
+#debriefBlock { text-align: left; margin-top: 12px; border-top: 1px solid rgba(120,160,220,0.25); padding-top: 10px; }
+#debriefBlock h3 { font-size: 14px; margin: 0 0 6px; }
+#debriefBlock p { font-size: 13px; line-height: 1.5; }
