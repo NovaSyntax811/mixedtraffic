@@ -289,11 +289,16 @@ const WALK_SURVEYS = {
 // Generic in-app form: renders question items into the shared #walkSurvey
 // modal and resolves to { itemId: answer, ... } once every required item is
 // answered and Continue is pressed. Item types:
-//   likert — 1 to 7 buttons
-//   choice — one of item.options [[value, label], ...]
+//   likert — 1 to 7 buttons (L7 / L7-sure); item.anchors = [leftText, rightText]
+//   sd5    — 5-point semantic differential; item.anchors = [left, right]
+//   choice — one of item.options [[value, label], ...] (also used for BIN/CAT)
+//   int    — integer input (item.min / item.max)
 //   text   — free text area (required unless item.optional)
 //   note   — plain instruction paragraph, no input
-export function showForm(items, title = 'Quick questions') {
+// opts.shuffle randomizes the order of the input items (notes stay put), per
+// the instrument's "randomize item order within each block" rule. Reverse-keyed
+// items are shown UN-flipped; flipping happens at scoring.
+export function showForm(items, title = 'Quick questions', opts = {}) {
   return new Promise((resolve) => {
     const dialog = document.getElementById('walkSurvey');
     const body = document.getElementById('wsBody');
@@ -307,7 +312,21 @@ export function showForm(items, title = 'Quick questions') {
       submit.disabled = required.some((it) => answers[it.id] === undefined || answers[it.id] === '');
     };
 
-    for (const item of items) {
+    // Optional within-block randomization: shuffle the input items among the
+    // positions they occupy, leaving instruction notes where they are.
+    let ordered = items;
+    if (opts.shuffle) {
+      const rand = opts.rand ?? Math.random;
+      const inputs = items.filter((it) => it.type !== 'note');
+      for (let i = inputs.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        [inputs[i], inputs[j]] = [inputs[j], inputs[i]];
+      }
+      let k = 0;
+      ordered = items.map((it) => (it.type === 'note' ? it : inputs[k++]));
+    }
+
+    for (const item of ordered) {
       if (item.type === 'note') {
         const n = document.createElement('p');
         n.className = 'form-note';
@@ -318,6 +337,7 @@ export function showForm(items, title = 'Quick questions') {
       const q = document.createElement('p');
       q.textContent = item.label;
       body.appendChild(q);
+
       if (item.type === 'text') {
         const ta = document.createElement('textarea');
         ta.rows = 2;
@@ -329,12 +349,36 @@ export function showForm(items, title = 'Quick questions') {
         body.appendChild(ta);
         continue;
       }
+      if (item.type === 'int') {
+        const inp = document.createElement('input');
+        inp.type = 'number';
+        if (item.min !== undefined) inp.min = item.min;
+        if (item.max !== undefined) inp.max = item.max;
+        inp.addEventListener('input', () => {
+          const v = parseInt(inp.value, 10);
+          if (Number.isFinite(v) && (item.min === undefined || v >= item.min) && (item.max === undefined || v <= item.max)) {
+            answers[item.id] = v;
+          } else delete answers[item.id];
+          update();
+        });
+        body.appendChild(inp);
+        continue;
+      }
+
+      const scale = item.type === 'likert' ? [1, 2, 3, 4, 5, 6, 7]
+        : item.type === 'sd5' ? [1, 2, 3, 4, 5] : null;
+      const wrap = document.createElement('div');
+      wrap.className = 'scale-wrap';
+      if (scale && item.anchors) {
+        const a = document.createElement('span');
+        a.className = 'anchor';
+        a.textContent = item.anchors[0];
+        wrap.appendChild(a);
+      }
       const row = document.createElement('div');
       row.className = 'row wrap';
-      const opts = item.type === 'likert'
-        ? [1, 2, 3, 4, 5, 6, 7].map((n) => [n, String(n)])
-        : item.options;
-      for (const [value, label] of opts) {
+      const optList = scale ? scale.map((n) => [n, String(n)]) : item.options;
+      for (const [value, label] of optList) {
         const b = document.createElement('button');
         b.textContent = label;
         b.addEventListener('click', () => {
@@ -344,7 +388,14 @@ export function showForm(items, title = 'Quick questions') {
         });
         row.appendChild(b);
       }
-      body.appendChild(row);
+      wrap.appendChild(row);
+      if (scale && item.anchors) {
+        const a2 = document.createElement('span');
+        a2.className = 'anchor';
+        a2.textContent = item.anchors[1];
+        wrap.appendChild(a2);
+      }
+      body.appendChild(wrap);
     }
 
     update();

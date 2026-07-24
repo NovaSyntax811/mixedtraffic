@@ -4,9 +4,9 @@ import { createScene, LAYOUT } from './scene.js?v=48';
 import { AV } from './vehicle.js?v=36';
 import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=55';
 import { EHMISound } from './audio.js?v=17';
-import { BehaviorLogger, showConfidenceCheck, showWalkSurvey } from './logger.js?v=18';
+import { BehaviorLogger, showConfidenceCheck, showWalkSurvey } from './logger.js?v=19';
 import { isQuantMode, runQuantStudy } from './quantflow.js?v=4';
-import { isComplexityMode, runComplexityStudy } from './quantflow2.js?v=1';
+import { isComplexityMode, runComplexityStudy } from './quantflow2.js?v=2';
 import { ScenarioRunner } from './scenarios.js?v=63';
 
 const { scene, camera, renderer, composer, setTimeOfDay } = createScene();

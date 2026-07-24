@@ -17,7 +17,7 @@
 //
 // Result upload is INTENTIONALLY absent for now (team decision: add later).
 // submitResults() below is the single place to wire an endpoint into.
-import { showForm } from './logger.js?v=18';
+import { showForm } from './logger.js?v=19';
 
 const NPC_DELAY_MS = 3500; // fixed early/late window boundary (3 to 4 s)
 
