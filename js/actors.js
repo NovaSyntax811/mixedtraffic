@@ -182,18 +182,40 @@ export class NpcPedestrian {
     this.targetX = targetX;
   }
 
-  update(dt) {
+  // obstacles: [{pos, r}] — anything the NPC must not walk through (the AV, a
+  // cyclist, other pedestrians). The NPC halts a body-width short of a blocker
+  // directly ahead and resumes once it clears, instead of clipping through it.
+  update(dt, obstacles = []) {
     if (!this.group.visible || this.state !== 'crossing') return;
-    const dx = this.targetX - this.group.position.x;
-    const dir = Math.sign(dx);
-    this.group.position.x += dir * this.speed * dt;
+    const pos = this.group.position;
+    const dx = this.targetX - pos.x;
+    const dir = Math.sign(dx) || 1;
+
+    // Blocked if something sits just ahead in the walking direction, within a
+    // narrow lateral band (the NPC's own path along z).
+    const NPC_R = 0.4, LOOK = 1.0;
+    let blocked = false;
+    for (const o of obstacles) {
+      const ox = o.pos.x - pos.x, oz = o.pos.z - pos.z;
+      const ahead = ox * dir;                 // >0 = in front along +/-x
+      const r = (o.r ?? 0.5) + NPC_R;
+      if (ahead > -r && ahead < r + LOOK && Math.abs(oz) < r) { blocked = true; break; }
+    }
+
+    if (!blocked) pos.x += dir * this.speed * dt;
     this.group.rotation.y = Math.atan2(dir, 0);
-    this._walkPhase += dt * 6.5;
-    const sw = Math.sin(this._walkPhase) * 0.45;
-    this.legs[0].rotation.x = sw;
-    this.legs[1].rotation.x = -sw;
-    this.arms[0].rotation.x = -sw * 0.7;
-    this.arms[1].rotation.x = sw * 0.7;
+
+    if (blocked) { // stand still, relax the gait
+      for (const l of this.legs) l.rotation.x *= 1 - Math.min(1, dt * 8);
+      for (const a of this.arms) a.rotation.x *= 1 - Math.min(1, dt * 8);
+    } else {
+      this._walkPhase += dt * 6.5;
+      const sw = Math.sin(this._walkPhase) * 0.45;
+      this.legs[0].rotation.x = sw;
+      this.legs[1].rotation.x = -sw;
+      this.arms[0].rotation.x = -sw * 0.7;
+      this.arms[1].rotation.x = sw * 0.7;
+    }
     if (Math.abs(dx) < 0.15) {
       this.state = 'idle';
       for (const l of this.legs) l.rotation.x = 0;

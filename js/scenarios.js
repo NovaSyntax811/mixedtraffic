@@ -813,24 +813,27 @@ export class ScenarioRunner {
     this.cyclist.hide();
 
     const pz = cfg.playerZ ?? 12;
-    const dir = cfg.mirrored ? -1 : 1; // companions ahead of / behind the player
     this.pedestrian.group.position.set(-5.5, 0, pz);
     this.pedestrian.heading = Math.PI / 2;
     this.pedestrian.group.rotation.y = Math.PI / 2;
 
-    // Companions on the participant's own kerb: same direction, no conflict.
+    // The AV, coming from the south, rests with its ~4.4 m body reaching south
+    // of its nose. Everyone who crosses must do so NORTH of the nose (in front
+    // of the car), never inside that footprint, or they would stall at the car.
+    // Companions therefore sit north of the participant; the far-kerb addressee
+    // sits just north too. Kerb x = +/-5.5.
     this._companions = [];
     const nSame = Math.min(cfg.sameSideNpcs ?? 0, this.npcs?.length ?? 0);
-    const offsets = [3, -3, 6];
+    const offsets = [2, 4, 6]; // metres north of the participant
     for (let i = 0; i < nSame; i++) {
-      this.npcs[i].place(-5.5, pz + dir * offsets[i], Math.PI / 2);
+      this.npcs[i].place(-5.5, pz + offsets[i], Math.PI / 2);
       this._companions.push(this.npcs[i]);
     }
     // Far-kerb addressee: the road user the signal is actually for (C3a).
     this._addressee = null;
     this._addresseeZ = null;
     if (cfg.oppositeNpc && this.npcs?.[nSame]) {
-      this._addresseeZ = pz + dir * 2.5;
+      this._addresseeZ = pz + 1; // just north of the participant, far kerb
       this._addressee = this.npcs[nSame];
       this._addressee.place(5.5, this._addresseeZ, -Math.PI / 2);
     }

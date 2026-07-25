@@ -2,12 +2,12 @@
 import * as THREE from 'three';
 import { createScene, LAYOUT } from './scene.js?v=48';
 import { AV } from './vehicle.js?v=36';
-import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=55';
+import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=56';
 import { EHMISound } from './audio.js?v=17';
 import { BehaviorLogger, showConfidenceCheck, showWalkSurvey } from './logger.js?v=19';
 import { isQuantMode, runQuantStudy } from './quantflow.js?v=4';
 import { isComplexityMode, runComplexityStudy } from './quantflow2.js?v=2';
-import { ScenarioRunner } from './scenarios.js?v=63';
+import { ScenarioRunner } from './scenarios.js?v=64';
 
 const { scene, camera, renderer, composer, setTimeOfDay } = createScene();
 
@@ -667,7 +667,20 @@ function animate() {
   pedestrian.update(dt, moveDir());
   av.update(dt);
   humanCar.update(dt);
-  for (const n of npcs) n.update(dt);
+
+  // Solid things a crossing NPC must not walk through (vehicles, the cyclist,
+  // the player). Built before the NPCs move so they can yield to them; each
+  // NPC also avoids the OTHER visible NPCs (added per-NPC below, minus self).
+  const npcBlockers = [{ pos: pedestrian.group.position, r: 0.5 }];
+  if (av.group.visible) npcBlockers.push({ pos: av.group.position, r: 1.4 });
+  if (humanCar.group.visible) npcBlockers.push({ pos: humanCar.group.position, r: 1.4 });
+  if (mergingCar.group.visible) npcBlockers.push({ pos: mergingCar.group.position, r: 1.4 });
+  if (cyclist.active) npcBlockers.push({ pos: cyclist.group.position, r: 0.7 });
+  for (const n of npcs) {
+    if (!n.group.visible) continue;
+    const others = npcs.filter((o) => o !== n && o.group.visible).map((o) => ({ pos: o.group.position, r: 0.5 }));
+    n.update(dt, [...npcBlockers, ...others]);
+  }
 
   // Obstacle lists so nothing clips through anything: the cyclist avoids (or
   // crashes into) everyone, traffic cars brake for everyone.
