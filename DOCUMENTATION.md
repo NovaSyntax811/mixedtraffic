@@ -173,6 +173,66 @@ far-kerb pedestrian (ground truth `other`) and an honest yield with a
 competing cyclist cutting through (ground truth `you`, the over-trust probe;
 the car never lies, so no deception is involved).
 
+## VR edition (Meta Quest 3, branch `vr-quest3`)
+
+The same simulation runs as an immersive WebXR session in the Quest Browser.
+Without a VR session nothing changes, so desktop and VR use one code base.
+
+**Getting it onto the headset.** WebXR only works on a secure page: HTTPS, or
+`localhost`.
+
+1. *Via Netlify (easiest, no cable):* deploy the branch (branch deploy or the
+   site's production branch), open the HTTPS address in the Quest Browser,
+   and add the study parameters as usual, for example
+   `https://<site>/?study2=1&p=P07`.
+2. *Locally over USB:* enable developer mode on the Quest (Meta Horizon app),
+   install `adb` (`brew install android-platform-tools`), connect the headset
+   with a cable, run the local server as usual, then
+   ```bash
+   adb reverse tcp:8741 tcp:8741
+   ```
+   and open `http://localhost:8741/?study2=1&p=P07` in the Quest Browser.
+   (An ordinary `http://192.168…` address does not work: not a secure page.)
+
+**What the participant does.** Consent and demographics are filled in on the
+browser window inside the headset (the Quest Browser shows normal pages).
+Right before the interactive part an **Enter VR** dialog appears; the click
+starts the VR session. Inside VR:
+
+- walk with the **left thumbstick** (head-relative) or simply step; real
+  steps and leaning move the pedestrian 1:1
+- turn with the head or the **right thumbstick** (30 degree snap turns)
+- briefings, per-trial questions, the condition batteries, attention checks
+  and accident notices appear on a **panel in the street**; point at a button
+  and pull the **trigger**
+- forms that need typing (age, open questions) end the VR part with a short
+  notice and continue in the browser window
+
+**Moderated sessions in VR** (no `?study`): the DOM menus are invisible in the
+headset, so a situation menu appears on a panel at the start, after each run,
+and whenever a **grip** button is pressed (e.g. to end the free-roam
+training). The session leader tells the participant which number to press.
+The headset view can be cast to a laptop or phone via the Meta Horizon app so
+the leader sees what the participant sees.
+
+**Seated participants:** add `&vreye=1.6` to fix the eye height at 1.6 m.
+
+**Logged in addition:** every run carries `display: "vr" | "desktop"`;
+`display_mode`, `vr_session_start` and `vr_session_end` records (the latter
+with mean and minimum frame rate); the scanning trace stores real head yaw
+and pitch in VR. Analyse VR and desktop participants separately or with
+display mode as a factor: they are not interchangeable samples.
+
+**Performance measures for the headset:** bloom is skipped in VR (post
+processing cannot run in WebXR; the light band still glows), the sun's
+shadows and the street-lamp point lights are off during the session, and all
+windows are two instanced meshes. Check `minFps` in the pilot logs; the
+Quest runs at 72 Hz, values well below that mean the scene needs further
+simplification.
+
+**Testing without a headset:** `?vrdebug=1` shows the VR panels on the desktop
+and lets you answer them with the mouse.
+
 ## Debiasing rules (implemented)
 
 So that neither the player nor a watching group is primed:
