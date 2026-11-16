@@ -30,6 +30,8 @@ export class BehaviorLogger {
       scannedBeforeCrossing: null,
       events: [],
       confidence: null,
+      // 'vr' or 'desktop': VR and screen runs must stay separable in analysis
+      display: this.displayMode ? this.displayMode() : 'desktop',
       ...(this.nextMeta ?? {}), // e.g. protocolStep, mode, soundVolume
     };
     this.nextMeta = null;
@@ -298,7 +300,48 @@ const WALK_SURVEYS = {
 // opts.shuffle randomizes the order of the input items (notes stay put), per
 // the instrument's "randomize item order within each block" rule. Reverse-keyed
 // items are shown UN-flipped; flipping happens at scoring.
-export function showForm(items, title = 'Quick questions', opts = {}) {
+// A VR presenter (js/vr.js) can take over while an immersive session runs,
+// because DOM overlays are invisible there. Contract:
+//   isPresenting() -> bool, present(orderedItems, title) -> Promise<answers>,
+//   leaveForDom()  -> Promise (ends VR so a text form can be shown in the DOM)
+let formPresenter = null;
+export function setFormPresenter(p) { formPresenter = p; }
+
+// Within-BLOCK randomization: an instruction note opens a block, and the input
+// items are shuffled only among the positions of their own block. (Shuffling
+// across the whole form would put, say, semantic-differential safety items
+// under the Likert instruction and Likert items under the safety heading.)
+export function orderItems(items, opts = {}) {
+  if (!opts.shuffle) return items;
+  const rand = opts.rand ?? Math.random;
+  const out = [];
+  let block = [];
+  const flush = () => {
+    for (let i = block.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [block[i], block[j]] = [block[j], block[i]];
+    }
+    out.push(...block);
+    block = [];
+  };
+  for (const it of items) {
+    if (it.type === 'note') { flush(); out.push(it); } else block.push(it);
+  }
+  flush();
+  return out;
+}
+
+export async function showForm(items, title = 'Quick questions', opts = {}) {
+  const ordered = orderItems(items, opts);
+  if (formPresenter?.isPresenting()) {
+    const needsDom = ordered.some((it) => it.type === 'text' || it.type === 'int');
+    if (!needsDom) return formPresenter.present(ordered, title);
+    await formPresenter.leaveForDom(); // typing is done in the browser window
+  }
+  return showDomForm(ordered, title);
+}
+
+function showDomForm(ordered, title) {
   return new Promise((resolve) => {
     const dialog = document.getElementById('walkSurvey');
     const body = document.getElementById('wsBody');
@@ -307,24 +350,10 @@ export function showForm(items, title = 'Quick questions', opts = {}) {
     if (titleEl) titleEl.textContent = title;
     body.innerHTML = '';
     const answers = {};
-    const required = items.filter((it) => it.type !== 'note' && !it.optional);
+    const required = ordered.filter((it) => it.type !== 'note' && !it.optional);
     const update = () => {
       submit.disabled = required.some((it) => answers[it.id] === undefined || answers[it.id] === '');
     };
-
-    // Optional within-block randomization: shuffle the input items among the
-    // positions they occupy, leaving instruction notes where they are.
-    let ordered = items;
-    if (opts.shuffle) {
-      const rand = opts.rand ?? Math.random;
-      const inputs = items.filter((it) => it.type !== 'note');
-      for (let i = inputs.length - 1; i > 0; i--) {
-        const j = Math.floor(rand() * (i + 1));
-        [inputs[i], inputs[j]] = [inputs[j], inputs[i]];
-      }
-      let k = 0;
-      ordered = items.map((it) => (it.type === 'note' ? it : inputs[k++]));
-    }
 
     for (const item of ordered) {
       if (item.type === 'note') {

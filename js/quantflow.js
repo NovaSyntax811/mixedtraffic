@@ -17,7 +17,7 @@
 //
 // Result upload is INTENTIONALLY absent for now (team decision: add later).
 // submitResults() below is the single place to wire an endpoint into.
-import { showForm } from './logger.js?v=19';
+import { showForm } from './logger.js?v=20';
 
 const NPC_DELAY_MS = 3500; // fixed early/late window boundary (3 to 4 s)
 
@@ -157,6 +157,9 @@ export async function runQuantStudy(ctx) {
   await waitClick('introStart');
   hide('introDialog');
 
+  // 3b. Optional VR (Quest 3): offered right before the interactive part.
+  await ctx.offerVR?.();
+
   // 4. Training with a GATE: one successful crossing required before the
   // study can start, so every participant has demonstrably learned the
   // controls (novelty and skill floor).
@@ -166,17 +169,19 @@ export async function runQuantStudy(ctx) {
   ready.disabled = true;
   ready.textContent = 'Training: cross the street once to continue';
   show('readyBtn');
-  let crossedOnce = false;
-  const gate = setInterval(() => {
-    if (!crossedOnce && ctx.playerX() > 4.6) {
-      crossedOnce = true;
-      ready.disabled = false;
-      ready.textContent = '✅ I feel ready, start the study';
-      clearInterval(gate);
-    }
-  }, 200);
-  await waitClick('readyBtn');
-  clearInterval(gate);
+  await new Promise((res) => {
+    const gate = setInterval(() => {
+      if (ctx.playerX() > 4.6) { clearInterval(gate); res(); }
+    }, 200);
+  });
+  ready.disabled = false;
+  ready.textContent = '✅ I feel ready, start the study';
+  // In VR the DOM button is invisible: an in-world panel (walking stays
+  // possible while it is up) offers the same choice.
+  const vrReady = ctx.vrActive?.()
+    ? ctx.vrMessage('Well done. Keep exploring as long as you like. When you feel ready, start the study.', 'Start the study', { blocking: false })
+    : new Promise(() => {});
+  await Promise.race([waitClick('readyBtn'), vrReady]);
   hide('readyBtn');
   ctx.stopRun();
   logger.runs.push({ record: 'training_done', participant: pid, trainingMs: Math.round(performance.now() - tTrain) });

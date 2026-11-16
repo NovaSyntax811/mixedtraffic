@@ -1,15 +1,29 @@
 // Entry point: wires scene, actors, audio, scenarios, cameras, input, UI, logging.
 import * as THREE from 'three';
-import { createScene, LAYOUT } from './scene.js?v=48';
+import { createScene, LAYOUT } from './scene.js?v=49';
 import { AV } from './vehicle.js?v=36';
-import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=56';
+import { Pedestrian, NpcPedestrian, Cyclist, MergingCar, HumanCar, TrafficManager } from './actors.js?v=57';
 import { EHMISound } from './audio.js?v=17';
-import { BehaviorLogger, showConfidenceCheck, showWalkSurvey } from './logger.js?v=19';
-import { isQuantMode, runQuantStudy } from './quantflow.js?v=4';
-import { isComplexityMode, runComplexityStudy } from './quantflow2.js?v=2';
-import { ScenarioRunner } from './scenarios.js?v=64';
+import { BehaviorLogger, showConfidenceCheck, showWalkSurvey, showForm, setFormPresenter } from './logger.js?v=20';
+import { isQuantMode, runQuantStudy } from './quantflow.js?v=5';
+import { isComplexityMode, runComplexityStudy } from './quantflow2.js?v=3';
+import { ScenarioRunner } from './scenarios.js?v=65';
+import { setupVR } from './vr.js?v=1';
 
-const { scene, camera, renderer, composer, setTimeOfDay } = createScene();
+const { scene, camera, renderer, composer, setTimeOfDay, setVRMode } = createScene();
+
+// WebXR (Meta Quest 3). Outside a VR session the rig is an identity transform,
+// so the desktop simulation behaves exactly as before. ?vrdebug=1 shows the
+// in-world panels on the desktop and drives them with the mouse (testing).
+const vr = setupVR({
+  scene, camera, renderer, setVRMode,
+  debugDesktop: new URLSearchParams(location.search).has('vrdebug'),
+});
+setFormPresenter(vr.presenter);
+{
+  const eye = parseFloat(new URLSearchParams(location.search).get('vreye'));
+  if (Number.isFinite(eye)) vr.setEyeHeight(eye); // e.g. ?vreye=1.6 for seated participants
+}
 
 // Each scenario gets its own time of day so the scene stays legible and
 // distinct. Night is reserved for the audio-only study (screen is blacked
@@ -54,10 +68,26 @@ const SCENARIO_RECAP = {
 // the user confirms (recapStart). Falls back to running directly if there is
 // no briefing for that scenario.
 let pendingScenario = null;
+// In VR the DOM briefing is invisible: the same lines go on the in-world
+// panel, with the keyboard/mouse hints swapped for controller hints.
+const VR_CONTROLS = 'Walk with the left thumbstick or simply step, turn with the right thumbstick or your head.';
+function vrBriefingText(r) {
+  return r.lines.map(([who, what]) => {
+    const w = who.replace(/^[^\p{L}\p{N}]+/u, '');
+    const t = what.replace(/\s*\([^)]*\b(W|mouse)\b[^)]*\)/g, '').replace(/W walks where you look, the mouse turns your head/g, 'walk with the left thumbstick, turn with the right one');
+    return `${w}: ${t}`;
+  }).join('\n') + '\n' + VR_CONTROLS;
+}
 function showBriefing(scenario) {
   const r = SCENARIO_RECAP[scenario];
   if (!r) { beginRun(scenario); return; }
   pendingScenario = scenario;
+  if (vr.presenter.isPresenting()) {
+    vr.presentMessage(vrBriefingText(r), 'Start', r.title).then((ok) => {
+      if (ok && pendingScenario === scenario) beginRun(scenario);
+    });
+    return;
+  }
   $('recapTitle').textContent = r.title;
   $('recapBody').innerHTML = r.lines
     .map(([who, what]) => `<div class="recap-line"><span class="who">${who}</span>: ${what}</div>`)
@@ -76,6 +106,7 @@ const traffic = new TrafficManager(scene);
 const npcs = [new NpcPedestrian(scene, 0x4a7a8a), new NpcPedestrian(scene, 0x8a6a4a), new NpcPedestrian(scene, 0x6a8a4a)];
 const sound = new EHMISound();
 const logger = new BehaviorLogger();
+logger.displayMode = () => (vr.isImmersive() ? 'vr' : 'desktop');
 
 const hudMsg = document.getElementById('hudMsg');
 const phaseLabel = document.getElementById('phaseLabel');
@@ -103,15 +134,60 @@ const runner = new ScenarioRunner({
     }
     // The confidence check can be switched off in the admin menu (e.g. when a
     // focus-group session runs long and the probes happen verbally instead).
+    // In VR the multi-select DOM dialog is invisible, so the same questions are
+    // asked as single choices on the in-world panel (same answer keys).
     if ($('toggleConfidence').checked) {
-      const answers = await showConfidenceCheck(!!run?.crossed);
+      const answers = vr.isImmersive()
+        ? await vrConfidenceCheck(!!run?.crossed)
+        : await showConfidenceCheck(!!run?.crossed);
       logger.completeRun(run, answers);
     } else {
       logger.completeRun(run, null);
     }
     hudMsg.textContent = 'Thank you. You can walk around, the next situation will start in a moment.';
+    vrScenarioMenu(); // VR moderator mode: pick the next situation in the headset
   },
 });
+
+async function vrConfidenceCheck(crossed) {
+  const items = crossed
+    ? [
+      { id: 'reason', label: 'What made you cross?', type: 'choice', options: [['vehicle_stopped', 'The vehicle stopped'], ['ehmi_signal', 'The light band / display signal'], ['sound_cue', 'The sound cue'], ['traffic_clear', 'Traffic looked clear'], ['just_went', 'I just went']] },
+      { id: 'safety', label: 'How safe did you feel while crossing?', type: 'likert', anchors: ['not at all', 'very safe'] },
+    ]
+    : [
+      { id: 'reason', label: 'Why did you not cross?', type: 'choice', options: [['no_trust', "I didn't trust the vehicle"], ['signal_unclear', 'The signal was unclear'], ['traffic_unsafe', 'Other traffic felt unsafe'], ['needed_time', 'I needed more time']] },
+      { id: 'next', label: 'Would you cross next time?', type: 'choice', options: [['yes', 'Yes'], ['no', 'No']] },
+      { id: 'safety', label: 'How safe did you feel overall?', type: 'likert', anchors: ['not at all', 'very safe'] },
+    ];
+  const a = await showForm(items, 'Quick questions');
+  const out = { crossed, reasons: a.reason ? [a.reason] : [], safety: a.safety ?? null, input: 'vr_single_choice' };
+  if (!crossed) out.wouldCrossNextTime = a.next ?? null;
+  return out;
+}
+
+// VR moderator mode (no ?study): the DOM menus are invisible in the headset,
+// so the next situation is picked on an in-world panel. It opens at session
+// start, after each run, and whenever a controller grip button is pressed
+// (e.g. to end the free-roam training). The session leader tells the
+// participant which number to press; labels stay neutral as on the desktop.
+async function vrScenarioMenu() {
+  if (!vr.isImmersive() || document.body.classList.contains('study-mode') || vr.formOpen()) return;
+  const options = [...document.querySelectorAll('#scenarioMenu .scenario-card')].map((c) =>
+    [c.dataset.scenario, c.querySelector('strong').textContent.replace(/^[^\p{L}\p{N}]+/u, '')]);
+  options.push(['__exit', 'Leave VR']);
+  const a = await vr.presenter.present(
+    [{ id: 'scn', label: 'Which situation next? (the session leader tells you)', type: 'choice', options }],
+    'Situations', { autoSubmit: true });
+  if (!a || a.vrInterrupted || !a.scn) return;
+  if (a.scn === '__exit') { vr.exit(); return; }
+  logger.closeRun('stopped'); // a running situation (e.g. training) ends cleanly
+  runner.reset();
+  selectedScenario = /^\d+$/.test(a.scn) ? parseInt(a.scn, 10) : a.scn;
+  $('scenarioLabel').textContent = SCENARIO_LABELS[selectedScenario];
+  startSelected();
+}
+vr.onGrip(() => vrScenarioMenu());
 
 // Free-walk mini surveys: after each walk situation, ask the short
 // domain-targeted questions (unless the researcher switched checks off for a
@@ -143,6 +219,8 @@ window.addEventListener('keyup', (e) => keys.delete(e.code));
 //  - Observer: the camera sits at a fixed offset, so movement is derived
 //    from the camera axes (W = up the screen).
 function moveDir() {
+  // VR: left thumbstick, relative to where the head points (analog speed).
+  if (vr.isImmersive()) return vr.moveVector();
   const input = new THREE.Vector2(); // x = right on screen, y = forward
   if (keys.has('KeyW') || keys.has('ArrowUp')) input.y += 1;
   if (keys.has('KeyS') || keys.has('ArrowDown')) input.y -= 1;
@@ -218,10 +296,20 @@ window.addEventListener('mouseup', () => {
   lookDragging = false;
   renderer.domElement.style.cursor = '';
 });
-function resetFpvLook() { fpvYaw = FPV_YAW; fpvPitch = 0; }
+function resetFpvLook() {
+  fpvYaw = FPV_YAW; fpvPitch = 0;
+  if (vr.isImmersive()) vr.faceYaw(FPV_YAW); // turn the world so they face across the street
+}
 
 function updateCamera(dt) {
   const p = pedestrian.group.position;
+  if (vr.isImmersive()) {
+    // The headset owns the camera; only carry the tracking space along so the
+    // head sits on the pedestrian. No smoothing: any lag here causes sickness.
+    pedestrian.group.visible = false;
+    vr.placeRig(p);
+    return;
+  }
   const isFPV = camMode === 'pedestrian' || camMode === 'cyclist';
   // Hide the player model in first person so no body parts block the view
   pedestrian.group.visible = !isFPV;
@@ -301,6 +389,7 @@ function beginRun(scenario, { quietEdge = false, protocolStep = null } = {}) {
     setCamera('pedestrian');
     fpvYaw = 0;        // face north (+Z), so W walks up the street
     fpvPitch = 0;
+    if (vr.isImmersive()) vr.faceYaw(0);
   }
 
   $('recap').classList.add('hidden'); // briefing (if any) already confirmed
@@ -475,8 +564,13 @@ function triggerAccident(a, b) {
   sound.playCrash();
   logger.event('accident', { between: [a, b] });
   runner.haltForAccident();
-  document.getElementById('accidentText').textContent =
-    `There was an accident: the ${a} collided with the ${b}.`;
+  const text = `There was an accident: the ${a} collided with the ${b}.`;
+  if (vr.presenter.isPresenting()) {
+    // Same handling as the DOM OK button, confirmed on the in-world panel.
+    vr.presentMessage(text, 'OK').then(() => $('accidentOk').click());
+    return;
+  }
+  document.getElementById('accidentText').textContent = text;
   document.getElementById('accidentDialog').classList.remove('hidden');
 }
 
@@ -614,7 +708,7 @@ cyclist.onEvent = (name, data) => {
 };
 
 // Debug/scripting handle (used for automated testing; harmless in production)
-window.__sim = { runner, av, humanCar, pedestrian, cyclist, mergingCar, traffic, sound, logger, setCamera, camera, moveDir, keys, checkPedestrianCollisions, checkVehicleCollisions, updateCamera, renderer, resetFpvLook,
+window.__sim = { vr, scene, runner, av, humanCar, pedestrian, cyclist, mergingCar, traffic, sound, logger, setCamera, camera, moveDir, keys, checkPedestrianCollisions, checkVehicleCollisions, updateCamera, renderer, resetFpvLook,
   getFpvLook: () => ({ yaw: fpvYaw, pitch: fpvPitch }),
   npcs, beginRun, startSelected, getProtocol: () => protocol,
   setSelected: (v) => { selectedScenario = v; },
@@ -660,11 +754,25 @@ const ZONE_X = LAYOUT.roadWidth / 2 + 1.5; // pavement centre on either side
 const triggerZones = [buildTriggerZone(-ZONE_X), buildTriggerZone(ZONE_X)];
 let zoneElapsed = 0;
 
+// Driven by renderer.setAnimationLoop (below), which WebXR requires: in a VR
+// session the headset, not requestAnimationFrame, paces the frames.
 function animate() {
-  requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), 0.05);
+  const rawDt = clock.getDelta();
+  const dt = Math.min(rawDt, 0.05);
 
   pedestrian.update(dt, moveDir());
+  if (vr.isImmersive()) {
+    // Re-face the participant once the headset reports a real pose.
+    if (vrFaceFrames > 0 && --vrFaceFrames === 0) vr.faceYaw(fpvYaw);
+    // Physical steps and leaning move the pedestrian 1:1 (room-scale).
+    const d = vr.consumeHeadDelta();
+    if ((d.x || d.z) && !pedestrian.fallen) {
+      const pp = pedestrian.group.position;
+      pp.x = THREE.MathUtils.clamp(pp.x + d.x, -11, 11);
+      pp.z = THREE.MathUtils.clamp(pp.z + d.z, -14, 124);
+      if (Math.hypot(d.x, d.z) / Math.max(dt, 1e-3) > 0.25) pedestrian.moving = true;
+    }
+  }
   av.update(dt);
   humanCar.update(dt);
 
@@ -753,10 +861,12 @@ function animate() {
   // Behavioral logging tick (vehicle distance = AV, or human car in baseline).
   // Gaze proxy: in first person, is the head turned toward the vehicle (±30°)?
   const avDist = focusVehicle().group.position.distanceTo(p);
-  const isFPVNow = camMode === 'pedestrian' || camMode === 'cyclist';
+  const isFPVNow = vr.isImmersive() || camMode === 'pedestrian' || camMode === 'cyclist';
+  // World-space head pose (in VR the camera's own position is tracking-space).
+  const camWorldPos = camera.getWorldPosition(_camPos);
   let lookingAtVehicle = false;
   if (isFPVNow) {
-    const toV = new THREE.Vector3().subVectors(focusVehicle().group.position, camera.position);
+    const toV = new THREE.Vector3().subVectors(focusVehicle().group.position, camWorldPos);
     toV.y = 0;
     if (toV.lengthSq() > 0.01) {
       toV.normalize();
@@ -777,18 +887,86 @@ function animate() {
       traceAcc = 0;
       const trace = (logger.current.trace ??= []);
       if (trace.length < 1200) {
-        trace.push({ t: Math.round(performance.now()), yaw: +fpvYaw.toFixed(3), x: +p.x.toFixed(2), z: +p.z.toFixed(2) });
+        // In VR yaw/pitch are the real head orientation (the scanning proxy
+        // becomes actual head movement); on the desktop the mouse-look values.
+        const yaw = vr.isImmersive() ? vr.headWorldYaw() : fpvYaw;
+        const pitch = vr.isImmersive() ? vr.headWorldPitch() : fpvPitch;
+        trace.push({ t: Math.round(performance.now()), yaw: +yaw.toFixed(3), pitch: +pitch.toFixed(3), x: +p.x.toFixed(2), z: +p.z.toFixed(2) });
       }
     }
   }
 
-  // Sound update with camera-relative panning
-  const camRight = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
-  sound.update(av.group.position, camera.position, camRight, av.speed, av.targetSpeed < av.speed - 0.3);
+  // Sound update with head-relative panning (world pose, so it follows the
+  // headset in VR and the camera on the desktop).
+  const camRight = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.getWorldQuaternion(_camQuat));
+  sound.update(av.group.position, camWorldPos, camRight, av.speed, av.targetSpeed < av.speed - 0.3);
 
-  composer.render();
+  vr.update(dt, hudMsg.textContent.replace(/\s*\([^)]*\b(W|mouse)\b[^)]*\)/g, ''), rawDt);
+
+  // Bloom post-processing cannot run inside an XR session: render directly
+  // there (the LED band still glows through its emissive material).
+  if (renderer.xr.isPresenting) renderer.render(scene, camera);
+  else composer.render();
 }
-animate();
+const _camPos = new THREE.Vector3();
+const _camQuat = new THREE.Quaternion();
+let vrFaceFrames = 0;
+renderer.setAnimationLoop(animate);
+
+// ---------- VR entry for the self-running studies ----------
+// Shown right before the interactive part (training / practice). Starting an
+// immersive session needs a click (user gesture), so this is a real dialog.
+// The chosen display mode is logged; ?vr=1 makes VR the expected mode and
+// logs a fallback to the screen explicitly.
+async function offerVR(log) {
+  const params = new URLSearchParams(location.search);
+  const required = params.has('vr');
+  const ok = await vr.supported();
+  if (!ok && !required) {
+    log.runs.push({ record: 'display_mode', display: 'desktop', vrOffered: false, timestamp: new Date().toISOString() });
+    return 'desktop';
+  }
+  const dlg = $('vrDialog');
+  const msg = $('vrDialogMsg');
+  msg.textContent = ok ? '' : 'VR is not available in this browser. Please open the study in the Quest Browser, or continue on the screen.';
+  $('vrEnterBtn').disabled = !ok;
+  dlg.classList.remove('hidden');
+  const mode = await new Promise((resolve) => {
+    $('vrEnterBtn').onclick = async () => {
+      sound.init();
+      try { await vr.enter(); resolve('vr'); } catch (err) { msg.textContent = 'VR could not start: ' + err.message; }
+    };
+    $('vrSkipBtn').onclick = () => resolve('desktop');
+  });
+  dlg.classList.add('hidden');
+  log.runs.push({ record: 'display_mode', display: mode, vrOffered: true, vrRequired: required, timestamp: new Date().toISOString() });
+  return mode;
+}
+
+// ---------- VR session bookkeeping ----------
+vr.onSessionStart(() => {
+  vrFaceFrames = 2; // wait for a real head pose before turning the world
+  $('vrBtn')?.classList.add('hidden');
+  logger.event('vr_session_start');
+  logger.runs.push({ record: 'vr_session_start', timestamp: new Date().toISOString() });
+  // Moderator mode: open the in-headset situation menu right away.
+  setTimeout(() => vrScenarioMenu(), 600);
+});
+vr.onSessionEnd((perf) => {
+  // Frame rate is a VR-specific confound (stutter can change crossing
+  // behaviour), so it is logged with every session.
+  logger.event('vr_session_end', perf ?? {});
+  logger.runs.push({ record: 'vr_session_end', timestamp: new Date().toISOString(), ...(perf ?? {}) });
+  vr.supported().then((ok) => { if (ok) $('vrBtn')?.classList.remove('hidden'); });
+});
+
+// "Enter VR" button: shown only where immersive VR is available (Quest
+// Browser on a headset, or a desktop browser with a connected PC VR headset).
+vr.supported().then((ok) => { if (ok) $('vrBtn')?.classList.remove('hidden'); });
+$('vrBtn')?.addEventListener('click', async () => {
+  sound.init(); // the click is also the user gesture the audio context needs
+  try { await vr.enter(); } catch (err) { hudMsg.textContent = 'VR could not start: ' + err.message; }
+});
 
 // ---------- Quantitative study mode (?study=1) ----------
 // Self-running session: consent, demographics, intro, free-roam training,
@@ -815,6 +993,9 @@ if (isQuantMode()) {
     stopRun: () => { logger.closeRun('training_complete'); setBlackout(false); sound.stopDistractor(); runner.reset(); },
     waitRun: () => new Promise((res) => { quantRunResolver = res; }),
     hud: (m) => { hudMsg.textContent = m; },
+    offerVR: () => offerVR(logger),
+    vrActive: () => vr.isImmersive(),
+    vrMessage: (text, button, opts) => vr.presentMessage(text, button, '', opts),
   }).catch((err) => {
     console.error('[study] flow error', err);
     hudMsg.textContent = 'Something went wrong. Please tell the team and reload the page.';
@@ -840,6 +1021,9 @@ if (isComplexityMode()) {
     stopRun: () => { logger.closeRun('stopped'); setBlackout(false); runner.reset(); },
     waitRun: () => new Promise((res) => { quantRunResolver = res; }),
     hud: (m) => { hudMsg.textContent = m; },
+    offerVR: () => offerVR(logger),
+    vrActive: () => vr.isImmersive(),
+    vrMessage: (text, button, opts) => vr.presentMessage(text, button, '', opts),
   }).catch((err) => {
     console.error('[study2] flow error', err);
     hudMsg.textContent = 'Something went wrong. Please tell the team and reload the page.';

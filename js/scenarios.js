@@ -1,6 +1,6 @@
 // Scenario state machines, following the interaction arc:
 // Detection -> Decision -> Action (signal) -> Acknowledgment -> Outcome
-import { LAYOUT } from './scene.js?v=48';
+import { LAYOUT } from './scene.js?v=49';
 
 const ZEBRA = LAYOUT.zebraZ;
 const PREROLL = 5;       // short opening hold: the car waits a few seconds so the

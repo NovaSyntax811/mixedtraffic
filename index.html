@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>eHMI Simulation · Prosocial AV Communication</title>
-<link rel="stylesheet" href="style.css?v=6" />
+<link rel="stylesheet" href="style.css?v=7" />
 <script type="importmap">
 {
   "imports": {
@@ -24,6 +24,7 @@
       <span id="scenarioLabel" class="scenario-label">Scenario 1</span>
       <button id="restartBtn">↺ Restart</button>
       <span id="phaseLabel" class="phase">idle</span>
+      <button id="vrBtn" class="hidden" title="Start the VR session (Meta Quest)">🥽 Enter VR</button>
     </div>
 
     <button id="adminBtn" class="panel" title="Admin menu (O)">⚙</button>
@@ -269,6 +270,25 @@
     </div>
   </div>
 
+  <!-- VR entry for the self-running studies (shown before training/practice) -->
+  <div id="vrDialog" class="modal hidden">
+    <div class="modal-box recap-box">
+      <h3>Continue in VR</h3>
+      <p>The next part takes place in the street. Make sure you have some free
+      space around you, then press <strong>Enter VR</strong>.</p>
+      <ul class="intro-list">
+        <li><strong>Walk</strong> with the left thumbstick, or simply take a step.</li>
+        <li><strong>Turn</strong> with your head or the right thumbstick.</li>
+        <li>Answer questions by <strong>pointing</strong> at a button and pulling the <strong>trigger</strong>.</li>
+      </ul>
+      <p id="vrDialogMsg" class="intro-note"></p>
+      <div class="recap-actions">
+        <button id="vrSkipBtn">Continue on the screen</button>
+        <button id="vrEnterBtn">🥽 Enter VR</button>
+      </div>
+    </div>
+  </div>
+
   <div id="studyEndDialog" class="modal hidden">
     <div class="modal-box">
       <h3>Thank you!</h3>
@@ -304,6 +324,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=70"></script>
+  <script type="module" src="js/main.js?v=71"></script>
 </body>
 </html>

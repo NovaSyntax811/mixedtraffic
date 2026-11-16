@@ -28,6 +28,7 @@ export function createScene() {
   composer.addPass(bloom);
 
   window.addEventListener('resize', () => {
+    if (renderer.xr.isPresenting) return; // the headset owns the framebuffer size
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -73,7 +74,17 @@ export function createScene() {
   }
   setTimeOfDay('afternoon'); // brighter default
 
-  return { scene, camera, renderer, composer, bloom, setTimeOfDay };
+  // A standalone headset renders the scene twice per frame at a very high
+  // resolution. While a VR session runs, drop the two most expensive things
+  // that add little there: the sun's shadow pass and the street-lamp point
+  // lights (every extra point light is paid per pixel on the whole road).
+  // Bloom is skipped in VR as well (post-processing cannot run in XR).
+  function setVRMode(on) {
+    sun.castShadow = !on;
+    env.setLampLightsVisible(!on);
+  }
+
+  return { scene, camera, renderer, composer, bloom, setTimeOfDay, setVRMode };
 }
 
 // Layout convention:
@@ -95,6 +106,7 @@ function buildEnvironment(scene) {
 
   // Collections toggled by time of day (off in daylight)
   const litWindows = []; // emissive window materials
+  const windowSlots = []; // every window of the town, instanced further down
   const lampLights = []; // street-lamp point lights
   const lampMats = [];   // street-lamp head materials
 
@@ -223,8 +235,33 @@ function buildEnvironment(scene) {
         b.position.set(bx, h / 2, bz);
         b.castShadow = b.receiveShadow = true;
         scene.add(b);
-        addWindows(scene, b, w, h, d, rand, litWindows);
+        addWindows(windowSlots, b, w, h, d, rand);
       }
+    }
+  }
+
+  // All windows of the town as TWO instanced meshes (dark glass, lit glass)
+  // instead of one mesh and often one material per window. Same look, but a
+  // few hundred draw calls fewer per eye, which is what makes the scene
+  // affordable in stereo on a standalone headset.
+  {
+    const winGeo = new THREE.PlaneGeometry(0.9, 1.1);
+    const darkMat = new THREE.MeshStandardMaterial({ color: 0x10131c, roughness: 0.4 });
+    const litMat = new THREE.MeshStandardMaterial({ color: 0x161a24, emissive: 0xffc870, emissiveIntensity: 1.1, roughness: 0.4 });
+    litWindows.push(litMat);
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion();
+    const one = new THREE.Vector3(1, 1, 1), up = new THREE.Vector3(0, 1, 0), pos = new THREE.Vector3();
+    for (const [lit, mat] of [[false, darkMat], [true, litMat]]) {
+      const slots = windowSlots.filter((s) => s.lit === lit);
+      if (!slots.length) continue;
+      const im = new THREE.InstancedMesh(winGeo, mat, slots.length);
+      slots.forEach((s, i) => {
+        q.setFromAxisAngle(up, s.rotY);
+        m4.compose(pos.set(s.x, s.y, s.z), q, one);
+        im.setMatrixAt(i, m4);
+      });
+      im.instanceMatrix.needsUpdate = true;
+      scene.add(im);
     }
   }
 
@@ -313,31 +350,29 @@ function buildEnvironment(scene) {
     for (const m of lampMats) m.emissiveIntensity = 1.6 * factor;
     for (const l of lampLights) l.intensity = 14 * factor;
   }
+  function setLampLightsVisible(v) {
+    for (const l of lampLights) l.visible = v;
+  }
 
-  return { setNightLights };
+  return { setNightLights, setLampLightsVisible };
 }
 
-function addWindows(scene, building, w, h, d, rand, litWindows) {
-  // Dark glass base for all windows; "lit" ones add a warm emissive we can
-  // switch off in daylight (so apartments are dark when it's bright outside).
-  const darkMat = new THREE.MeshStandardMaterial({ color: 0x10131c, roughness: 0.4 });
+// Collects one slot per window (position, facing, lit or dark) into `slots`;
+// buildEnvironment turns them into two instanced meshes. "Lit" windows get a
+// warm emissive that is switched off in daylight. The rand() call order is
+// unchanged, so the town looks exactly as before.
+function addWindows(slots, building, w, h, d, rand) {
   const rows = Math.floor(h / 3), cols = Math.floor(w / 2.2);
-  const geo = new THREE.PlaneGeometry(0.9, 1.1);
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const lit = rand() < 0.35;
-      const mat = lit
-        ? new THREE.MeshStandardMaterial({ color: 0x161a24, emissive: 0xffc870, emissiveIntensity: 1.1, roughness: 0.4 })
-        : darkMat;
-      if (lit) litWindows.push(mat);
-      const m = new THREE.Mesh(geo, mat);
-      m.position.set(
-        building.position.x - w / 2 + 1.1 + c * 2.2,
-        1.6 + r * 3,
-        building.position.z + (building.position.z > 0 ? -d / 2 - 0.01 : d / 2 + 0.01)
-      );
-      if (building.position.z > 0) m.rotation.y = Math.PI;
-      scene.add(m);
+      slots.push({
+        lit,
+        x: building.position.x - w / 2 + 1.1 + c * 2.2,
+        y: 1.6 + r * 3,
+        z: building.position.z + (building.position.z > 0 ? -d / 2 - 0.01 : d / 2 + 0.01),
+        rotY: building.position.z > 0 ? Math.PI : 0,
+      });
     }
   }
 }

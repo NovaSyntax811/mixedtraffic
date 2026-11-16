@@ -16,7 +16,7 @@
 // way), so t_decide and t_latency are captured behaviourally from the actual
 // crossing rather than asked, which is the stronger measure. Everything else
 // is asked exactly as specified.
-import { showForm } from './logger.js?v=19';
+import { showForm } from './logger.js?v=20';
 
 const LATIN3 = [
   ['C1', 'C2', 'C3'],
@@ -364,6 +364,10 @@ export async function runComplexityStudy(ctx) {
   show('introDialog');
   await waitClick('introStart');
   hide('introDialog');
+  // Optional VR (Quest 3): offered right before the interactive part. All
+  // per-trial forms and batteries are button-only and run on the in-world
+  // panel; the post-study text questions return to the browser window.
+  await ctx.offerVR?.();
   ctx.hud('Practice round. Nothing is recorded here.');
   ctx.startComplexityTrial({ ...PRACTICE, level: 'C1', label: 'Practice' });
   const practiceRun = await ctx.waitRun();
